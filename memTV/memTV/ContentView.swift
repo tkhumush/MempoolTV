@@ -67,7 +67,12 @@ struct ContentView: View {
                                         BlockView(
                                             blockNumber: txId.prefix(8).hashValue % 100000, 
                                             isConfirmed: false,
-                                            transactionCount: nil,
+                                            feeInfo: FeeInfo(
+                                                highPriority: Int.random(in: 40...60),
+                                                mediumPriority: Int.random(in: 25...35),
+                                                lowPriority: Int.random(in: 10...20),
+                                                estimatedMinutes: Int.random(in: 5...15)
+                                            ),
                                             isSelected: isBlockSelected(txId: txId, displayNumber: txId.prefix(8).hashValue % 100000),
                                             onTap: { }
                                         )
@@ -89,7 +94,12 @@ struct ContentView: View {
                                         BlockView(
                                             blockNumber: block.height, 
                                             isConfirmed: true,
-                                            transactionCount: block.txCount,
+                                            feeInfo: FeeInfo(
+                                                highPriority: Int.random(in: 30...50),
+                                                mediumPriority: Int.random(in: 20...30),
+                                                lowPriority: Int.random(in: 8...15),
+                                                estimatedMinutes: 0
+                                            ),
                                             isSelected: isBlockSelected(block: block),
                                             onTap: { }
                                         )

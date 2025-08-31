@@ -7,10 +7,17 @@
 
 import SwiftUI
 
+struct FeeInfo {
+    let highPriority: Int    // sat/vB
+    let mediumPriority: Int  // sat/vB
+    let lowPriority: Int     // sat/vB
+    let estimatedMinutes: Int // minutes until confirmation
+}
+
 struct BlockView: View {
     let blockNumber: Int
     let isConfirmed: Bool
-    let transactionCount: Int?
+    let feeInfo: FeeInfo?
     let isSelected: Bool
     let onTap: () -> Void
     
@@ -35,17 +42,69 @@ struct BlockView: View {
                 .fill(blockColor)
                 .frame(width: width, height: height)
                 .overlay(
-                    VStack(spacing: 4) {
-                        Text("\(blockNumber)")
-                            .font(.title2)
-                            .foregroundColor(.black)
-                            .bold()
-                        
-                        if let txCount = transactionCount {
-                            Text("\(txCount) tx")
+                    VStack(spacing: 3) {
+                        if let fees = feeInfo {
+                            VStack(spacing: 1) {
+                                Group {
+                                    HStack(spacing: 6) {
+                                        Text("H:")
+                                            .font(.caption2)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.black)
+                                        Text("\(fees.highPriority)")
+                                            .font(.caption2)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(.black)
+                                    }
+                                    
+                                    HStack(spacing: 6) {
+                                        Text("M:")
+                                            .font(.caption2)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.black)
+                                        Text("\(fees.mediumPriority)")
+                                            .font(.caption2)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(.black)
+                                    }
+                                    
+                                    HStack(spacing: 6) {
+                                        Text("L:")
+                                            .font(.caption2)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.black)
+                                        Text("\(fees.lowPriority)")
+                                            .font(.caption2)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(.black)
+                                    }
+                                }
+                                
+                                Text("sat/vB")
+                                    .font(.caption2)
+                                    .foregroundColor(.black)
+                                    .opacity(0.7)
+                                    .padding(.top, 1)
+                                
+                                if fees.estimatedMinutes > 0 {
+                                    Text("~\(fees.estimatedMinutes)min")
+                                        .font(.caption2)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.black)
+                                        .padding(.top, 2)
+                                } else {
+                                    Text("Confirmed")
+                                        .font(.caption2)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.black)
+                                        .padding(.top, 2)
+                                }
+                            }
+                        } else {
+                            Text("\(blockNumber)")
                                 .font(.caption)
                                 .foregroundColor(.black)
-                                .opacity(0.8)
+                                .bold()
                         }
                     }
                 )
@@ -89,7 +148,12 @@ struct Triangle: Shape {
         BlockView(
             blockNumber: 800000, 
             isConfirmed: true, 
-            transactionCount: 2341,
+            feeInfo: FeeInfo(
+                highPriority: 45,
+                mediumPriority: 32,
+                lowPriority: 18,
+                estimatedMinutes: 12
+            ),
             isSelected: true,
             onTap: {}
         )
@@ -97,7 +161,12 @@ struct Triangle: Shape {
         BlockView(
             blockNumber: 12345, 
             isConfirmed: false, 
-            transactionCount: nil,
+            feeInfo: FeeInfo(
+                highPriority: 52,
+                mediumPriority: 28,
+                lowPriority: 15,
+                estimatedMinutes: 8
+            ),
             isSelected: false,
             onTap: {}
         )
