@@ -55,36 +55,69 @@ struct ContentView: View {
                             .padding()
                     }
                     
-                    // Timeline layout - all blocks in one horizontal scrollable line
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 20) {
-                            // Mempool transactions first (representing pending/future)
-                            ForEach(Array(viewModel.mempoolTransactions.prefix(8).enumerated()), id: \.element) { index, txId in
-                                BlockView(
-                                    blockNumber: txId.prefix(8).hashValue % 100000, 
-                                    isConfirmed: false,
-                                    transactionCount: nil
-                                )
+                    VStack(spacing: 0) {
+                        // Timeline layout - top one-third
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 20) {
+                                // Mempool transactions first (representing pending/future)
+                                ForEach(Array(viewModel.mempoolTransactions.enumerated()).prefix(8), id: \.element) { index, txId in
+                                    Button {
+                                        viewModel.selectBlock(.mempool(txId, txId.prefix(8).hashValue % 100000))
+                                    } label: {
+                                        BlockView(
+                                            blockNumber: txId.prefix(8).hashValue % 100000, 
+                                            isConfirmed: false,
+                                            transactionCount: nil,
+                                            isSelected: isBlockSelected(txId: txId, displayNumber: txId.prefix(8).hashValue % 100000),
+                                            onTap: { }
+                                        )
+                                    }
+                                    .buttonStyle(.appleTV)
+                                }
+                                
+                                // Visual separator between mempool and confirmed
+                                Rectangle()
+                                    .fill(Color.gray.opacity(0.5))
+                                    .frame(width: 2, height: 100)
+                                    .padding(.horizontal, 10)
+                                
+                                // Confirmed blocks (representing established timeline)
+                                ForEach(viewModel.confirmedBlocks.reversed(), id: \.hash) { block in
+                                    Button {
+                                        viewModel.selectBlock(.confirmed(block))
+                                    } label: {
+                                        BlockView(
+                                            blockNumber: block.height, 
+                                            isConfirmed: true,
+                                            transactionCount: block.txCount,
+                                            isSelected: isBlockSelected(block: block),
+                                            onTap: { }
+                                        )
+                                    }
+                                    .buttonStyle(.appleTV)
+                                }
                             }
-                            
-                            // Visual separator between mempool and confirmed
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.5))
-                                .frame(width: 2, height: 100)
-                                .padding(.horizontal, 10)
-                            
-                            // Confirmed blocks (representing established timeline)
-                            ForEach(viewModel.confirmedBlocks.reversed(), id: \.hash) { block in
-                                BlockView(
-                                    blockNumber: block.height, 
-                                    isConfirmed: true,
-                                    transactionCount: block.txCount
-                                )
-                            }
+                            .padding(.horizontal, 40)
                         }
-                        .padding(.horizontal, 40)
+                        .frame(maxHeight: 250)
+                        .padding(.vertical, 20)
+                        
+                        // Block details section - bottom two-thirds
+                        if let selectedBlock = viewModel.selectedBlock {
+                            BlockDetailView(selectedBlock: selectedBlock)
+                                .padding(.top, 20)
+                        } else {
+                            VStack {
+                                Spacer()
+                                Text("Select a block to view details")
+                                    .font(.title2)
+                                    .foregroundColor(.gray)
+                                    .multilineTextAlignment(.center)
+                                Spacer()
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
                     }
-                    .padding(.vertical, 20)
                 }
                 
                 Spacer()
@@ -93,6 +126,50 @@ struct ContentView: View {
                 viewModel.startPolling()
             }
         }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func isBlockSelected(block: Block) -> Bool {
+        switch viewModel.selectedBlock {
+        case .confirmed(let selectedBlock):
+            return selectedBlock.hash == block.hash
+        case .mempool(_, _):
+            return false
+        case .none:
+            return false
+        }
+    }
+    
+    private func isBlockSelected(txId: String, displayNumber: Int) -> Bool {
+        switch viewModel.selectedBlock {
+        case .mempool(let selectedTxId, _):
+            return selectedTxId == txId
+        case .confirmed(_):
+            return false
+        case .none:
+            return false
+        }
+    }
+}
+
+// MARK: - CardButtonStyle for Apple TV
+
+extension ButtonStyle where Self == CardButtonStyle {
+    static var appleTV: CardButtonStyle {
+        CardButtonStyle()
+    }
+}
+
+struct CardButtonStyle: ButtonStyle {
+    @Environment(\.isFocused) var isFocused
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : (isFocused ? 1.05 : 1.0))
+            .shadow(color: isFocused ? .white : .clear, radius: isFocused ? 8 : 0)
+            .animation(.easeInOut(duration: 0.2), value: configuration.isPressed)
+            .animation(.easeInOut(duration: 0.2), value: isFocused)
     }
 }
 
