@@ -16,13 +16,30 @@ struct ContentView: View {
             Color.black
                 .edgesIgnoringSafeArea(.all)
             
-            VStack {
-                // Title
-                Text("Bitcoin Mempool Viewer")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .padding(.top, 50)
+            VStack(spacing: 0) {
+                // Header with logo and app name
+                HStack {
+                    // Logo placeholder (using a styled rectangle for now)
+                    Rectangle()
+                        .fill(Color.orange)
+                        .frame(width: 60, height: 60)
+                        .overlay(
+                            Text("TV")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.black)
+                        )
+                    
+                    Text("memTV")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 40)
+                .padding(.top, 40)
+                .padding(.bottom, 30)
                 
                 // Loading indicator
                 if viewModel.isLoading {
@@ -38,46 +55,40 @@ struct ContentView: View {
                             .padding()
                     }
                     
-                    ScrollView {
-                        // Mempool Blocks Section (moved above)
-                        VStack {
-                            Text("Mempool Transactions")
-                                .font(.title2)
-                                .foregroundColor(.purple)
-                                .padding(.bottom, 10)
-                            
-                            // List of mempool transactions
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 20), count: 5), spacing: 20) {
-                                ForEach(viewModel.mempoolTransactions, id: \.self) { txId in
-                                    BlockView(blockNumber: txId.prefix(8).hashValue % 100000, isConfirmed: false)
-                                }
+                    // Timeline layout - all blocks in one horizontal scrollable line
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 20) {
+                            // Mempool transactions first (representing pending/future)
+                            ForEach(Array(viewModel.mempoolTransactions.prefix(8).enumerated()), id: \.element) { index, txId in
+                                BlockView(
+                                    blockNumber: txId.prefix(8).hashValue % 100000, 
+                                    isConfirmed: false,
+                                    transactionCount: nil
+                                )
                             }
-                            .padding(.horizontal, 20)
-                        }
-                        .padding(.vertical, 20)
-                        
-                        // Confirmed Blocks Section (now below)
-                        VStack {
-                            Text("Confirmed Blocks (Last 5)")
-                                .font(.title2)
-                                .foregroundColor(.yellow)
-                                .padding(.bottom, 10)
                             
-                            // Grid of confirmed blocks
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 20), count: 5), spacing: 20) {
-                                ForEach(viewModel.confirmedBlocks, id: \.hash) { block in
-                                    BlockView(blockNumber: block.height, isConfirmed: true)
-                                }
+                            // Visual separator between mempool and confirmed
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.5))
+                                .frame(width: 2, height: 100)
+                                .padding(.horizontal, 10)
+                            
+                            // Confirmed blocks (representing established timeline)
+                            ForEach(viewModel.confirmedBlocks.reversed(), id: \.hash) { block in
+                                BlockView(
+                                    blockNumber: block.height, 
+                                    isConfirmed: true,
+                                    transactionCount: block.txCount
+                                )
                             }
-                            .padding(.horizontal, 20)
                         }
-                        .padding(.vertical, 20)
+                        .padding(.horizontal, 40)
                     }
+                    .padding(.vertical, 20)
                 }
                 
                 Spacer()
             }
-            .padding()
             .onAppear {
                 viewModel.startPolling()
             }
