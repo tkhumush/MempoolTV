@@ -22,6 +22,51 @@ class MempoolSpaceService: ObservableObject {
         }
     }
     
+    // Get fee recommendations (priority levels and confirmation estimates)
+    func getFeeRecommendations() async throws -> (high: Int, medium: Int, low: Int, estimatedMinutes: Int) {
+        let url = URL(string: "\(baseURL)/fees/recommended")!
+        let (data, _) = try await URLSession.shared.data(from: url)
+        
+        let feeData = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+        
+        let high = feeData["fastestFee"] as? Int ?? 45
+        let medium = feeData["halfHourFee"] as? Int ?? 30
+        let low = feeData["hourFee"] as? Int ?? 15
+        
+        // Estimate confirmation time based on medium priority (typically ~30 minutes)
+        let estimatedMinutes = 30
+        
+        return (high: high, medium: medium, low: low, estimatedMinutes: estimatedMinutes)
+    }
+    
+    // Get average fee for a specific block by hash
+    func getBlockAverageFee(blockHash: String) async throws -> Int? {
+        let url = URL(string: "\(baseURL)/block/\(blockHash)")!
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let blockData = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+            
+            // Calculate average fee from block data
+            if let extras = blockData["extras"] as? [String: Any],
+               let medianFeeRate = extras["medianFeeRate"] as? Double {
+                return Int(medianFeeRate)
+            }
+            
+            // Fallback: estimate based on total fees and transaction count
+            if let totalFees = blockData["totalFees"] as? Int,
+               let txCount = blockData["tx_count"] as? Int,
+               txCount > 0 {
+                return totalFees / txCount / 250 // Approximate sat/vB
+            }
+            
+            return nil
+        } catch {
+            // Return nil if block data cannot be fetched
+            return nil
+        }
+    }
+    
     // Get recent mempool transactions using the correct endpoint
     func getRecentMempoolTransactions() async throws -> [MempoolTransaction] {
         // Use the mempool endpoint to get current mempool data

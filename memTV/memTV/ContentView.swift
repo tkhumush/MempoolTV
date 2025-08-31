@@ -68,10 +68,11 @@ struct ContentView: View {
                                             blockNumber: txId.prefix(8).hashValue % 100000, 
                                             isConfirmed: false,
                                             feeInfo: FeeInfo(
-                                                highPriority: Int.random(in: 40...60),
-                                                mediumPriority: Int.random(in: 25...35),
-                                                lowPriority: Int.random(in: 10...20),
-                                                estimatedMinutes: Int.random(in: 5...15)
+                                                highPriority: viewModel.feeRecommendations.high,
+                                                mediumPriority: viewModel.feeRecommendations.medium,
+                                                lowPriority: viewModel.feeRecommendations.low,
+                                                estimatedMinutes: viewModel.feeRecommendations.estimatedMinutes,
+                                                averageFee: nil
                                             ),
                                             isSelected: isBlockSelected(txId: txId, displayNumber: txId.prefix(8).hashValue % 100000),
                                             onTap: { }
@@ -95,10 +96,11 @@ struct ContentView: View {
                                             blockNumber: block.height, 
                                             isConfirmed: true,
                                             feeInfo: FeeInfo(
-                                                highPriority: Int.random(in: 30...50),
-                                                mediumPriority: Int.random(in: 20...30),
-                                                lowPriority: Int.random(in: 8...15),
-                                                estimatedMinutes: 0
+                                                highPriority: 0,
+                                                mediumPriority: 0,
+                                                lowPriority: 0,
+                                                estimatedMinutes: 0,
+                                                averageFee: viewModel.blockAverageFees[block.hash]
                                             ),
                                             isSelected: isBlockSelected(block: block),
                                             onTap: { }

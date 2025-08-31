@@ -8,10 +8,11 @@
 import SwiftUI
 
 struct FeeInfo {
-    let highPriority: Int    // sat/vB
-    let mediumPriority: Int  // sat/vB
-    let lowPriority: Int     // sat/vB
-    let estimatedMinutes: Int // minutes until confirmation
+    let highPriority: Int    // sat/vB (mempool only)
+    let mediumPriority: Int  // sat/vB (mempool only) 
+    let lowPriority: Int     // sat/vB (mempool only)
+    let estimatedMinutes: Int // minutes until confirmation (mempool only)
+    let averageFee: Int?     // average fee in block (confirmed only)
 }
 
 struct BlockView: View {
@@ -42,59 +43,80 @@ struct BlockView: View {
                 .fill(blockColor)
                 .frame(width: width, height: height)
                 .overlay(
-                    VStack(spacing: 3) {
+                    VStack(spacing: 2) {
                         if let fees = feeInfo {
-                            VStack(spacing: 1) {
-                                Group {
-                                    HStack(spacing: 6) {
-                                        Text("H:")
-                                            .font(.caption2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.black)
-                                        Text("\(fees.highPriority)")
-                                            .font(.caption2)
-                                            .fontWeight(.medium)
-                                            .foregroundColor(.black)
-                                    }
+                            if isConfirmed {
+                                // Confirmed block: show block number and average fee
+                                VStack(spacing: 1) {
+                                    Text("Block")
+                                        .font(.system(size: 9))
+                                        .foregroundColor(.black)
+                                        .opacity(0.7)
                                     
-                                    HStack(spacing: 6) {
-                                        Text("M:")
-                                            .font(.caption2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.black)
-                                        Text("\(fees.mediumPriority)")
-                                            .font(.caption2)
-                                            .fontWeight(.medium)
-                                            .foregroundColor(.black)
-                                    }
+                                    Text("\(blockNumber)")
+                                        .font(.system(size: 14))
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.black)
                                     
-                                    HStack(spacing: 6) {
-                                        Text("L:")
-                                            .font(.caption2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.black)
-                                        Text("\(fees.lowPriority)")
-                                            .font(.caption2)
+                                    if let avgFee = fees.averageFee {
+                                        Text("Avg: \(avgFee)")
+                                            .font(.system(size: 9))
                                             .fontWeight(.medium)
                                             .foregroundColor(.black)
+                                            .padding(.top, 1)
+                                        
+                                        Text("sat/vB")
+                                            .font(.system(size: 8))
+                                            .foregroundColor(.black)
+                                            .opacity(0.6)
                                     }
                                 }
-                                
-                                Text("sat/vB")
-                                    .font(.caption2)
-                                    .foregroundColor(.black)
-                                    .opacity(0.7)
-                                    .padding(.top, 1)
-                                
-                                if fees.estimatedMinutes > 0 {
-                                    Text("~\(fees.estimatedMinutes)min")
-                                        .font(.caption2)
-                                        .fontWeight(.semibold)
+                            } else {
+                                // Mempool: show fee priorities and confirmation time
+                                VStack(spacing: 0) {
+                                    Group {
+                                        HStack(spacing: 4) {
+                                            Text("H:")
+                                                .font(.system(size: 9))
+                                                .fontWeight(.bold)
+                                                .foregroundColor(.black)
+                                            Text("\(fees.highPriority)")
+                                                .font(.system(size: 9))
+                                                .fontWeight(.medium)
+                                                .foregroundColor(.black)
+                                        }
+                                        
+                                        HStack(spacing: 4) {
+                                            Text("M:")
+                                                .font(.system(size: 9))
+                                                .fontWeight(.bold)
+                                                .foregroundColor(.black)
+                                            Text("\(fees.mediumPriority)")
+                                                .font(.system(size: 9))
+                                                .fontWeight(.medium)
+                                                .foregroundColor(.black)
+                                        }
+                                        
+                                        HStack(spacing: 4) {
+                                            Text("L:")
+                                                .font(.system(size: 9))
+                                                .fontWeight(.bold)
+                                                .foregroundColor(.black)
+                                            Text("\(fees.lowPriority)")
+                                                .font(.system(size: 9))
+                                                .fontWeight(.medium)
+                                                .foregroundColor(.black)
+                                        }
+                                    }
+                                    
+                                    Text("sat/vB")
+                                        .font(.system(size: 8))
                                         .foregroundColor(.black)
-                                        .padding(.top, 2)
-                                } else {
-                                    Text("Confirmed")
-                                        .font(.caption2)
+                                        .opacity(0.6)
+                                        .padding(.top, 1)
+                                    
+                                    Text("~\(fees.estimatedMinutes)min")
+                                        .font(.system(size: 9))
                                         .fontWeight(.semibold)
                                         .foregroundColor(.black)
                                         .padding(.top, 2)
@@ -145,19 +167,22 @@ struct Triangle: Shape {
 
 #Preview {
     Group {
+        // Confirmed block preview
         BlockView(
             blockNumber: 800000, 
             isConfirmed: true, 
             feeInfo: FeeInfo(
-                highPriority: 45,
-                mediumPriority: 32,
-                lowPriority: 18,
-                estimatedMinutes: 12
+                highPriority: 0,
+                mediumPriority: 0,
+                lowPriority: 0,
+                estimatedMinutes: 0,
+                averageFee: 42
             ),
             isSelected: true,
             onTap: {}
         )
         
+        // Mempool block preview
         BlockView(
             blockNumber: 12345, 
             isConfirmed: false, 
@@ -165,7 +190,8 @@ struct Triangle: Shape {
                 highPriority: 52,
                 mediumPriority: 28,
                 lowPriority: 15,
-                estimatedMinutes: 8
+                estimatedMinutes: 8,
+                averageFee: nil
             ),
             isSelected: false,
             onTap: {}
