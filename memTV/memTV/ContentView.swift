@@ -60,9 +60,12 @@ struct ContentView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 20) {
                                 // Mempool transactions first (representing pending/future)
-                                // Sort by position: higher position numbers (furthest from confirmation) on the left
-                                ForEach(Array(viewModel.mempoolTransactions.sorted { $0.position > $1.position }.enumerated()).prefix(8), id: \.element.txid) { index, transaction in
+                                // Sort by position: lower position numbers (closest to confirmation) on the right
+                                ForEach(Array(viewModel.mempoolTransactions.sorted { $0.position < $1.position }.enumerated()).prefix(8), id: \.element.txid) { index, transaction in
                                     let displayNumber = transaction.txid.prefix(8).hashValue % 100000
+                                    let blockDuration = 10
+                                    let mempoolBlockCount = viewModel.mempoolTransactions.count
+                                    let estimatedTime = (mempoolBlockCount - transaction.position) * blockDuration
                                     
                                     Button {
                                         viewModel.selectBlock(.mempool(transaction))
@@ -74,7 +77,7 @@ struct ContentView: View {
                                                 highPriority: 0,
                                                 mediumPriority: 0,
                                                 lowPriority: 0,
-                                                estimatedMinutes: transaction.estimatedConfirmationTime,
+                                                estimatedMinutes: estimatedTime,
                                                 averageFee: nil,
                                                 medianFee: transaction.medianFee
                                             ),
