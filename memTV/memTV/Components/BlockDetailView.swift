@@ -37,6 +37,11 @@ struct BlockDetailView: View {
                 }
             }
             
+            // Fee Distribution Chart (only for mempool transactions)
+            if case .mempool(_, _) = selectedBlock {
+                FeeDistributionChart(feeData: mockFeeData)
+            }
+            
             Spacer()
         }
         .padding(40)
@@ -102,6 +107,19 @@ struct BlockDetailView: View {
         case .mempool(_, _):
             return nil
         }
+    }
+    
+    // Mock fee distribution data for testing
+    private var mockFeeData: [FeeRange] {
+        [
+            FeeRange(minFee: 1, maxFee: 5, txCount: 120),
+            FeeRange(minFee: 6, maxFee: 10, txCount: 180),
+            FeeRange(minFee: 11, maxFee: 20, txCount: 250),
+            FeeRange(minFee: 21, maxFee: 30, txCount: 200),
+            FeeRange(minFee: 31, maxFee: 50, txCount: 150),
+            FeeRange(minFee: 51, maxFee: 100, txCount: 100),
+            FeeRange(minFee: 101, maxFee: 200, txCount: 60)
+        ]
     }
 }
 
