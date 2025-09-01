@@ -11,16 +11,20 @@ import SwiftUI
 // MARK: - Selection Types
 enum SelectedBlockType {
     case confirmed(Block)
-    case mempool(String, Int) // txId, displayNumber
+    case mempool(MempoolTransaction) // Full transaction data
 }
 
 @MainActor
 class MempoolViewModel: ObservableObject {
     @Published var confirmedBlocks: [Block] = []
-    @Published var mempoolTransactions: [String] = []
+    @Published var mempoolTransactions: [MempoolTransaction] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var selectedBlock: SelectedBlockType?
+    
+    // Fee data
+    @Published var feeRecommendations: (high: Int, medium: Int, low: Int, estimatedMinutes: Int) = (45, 30, 15, 30)
+    @Published var blockAverageFees: [String: Int] = [:] // blockHash -> averageFee
     
     private let mempoolService: MempoolSpaceService
     private var timer: Timer?
@@ -54,8 +58,14 @@ class MempoolViewModel: ObservableObject {
         
         Task {
             do {
+                // Get fee recommendations first
+                try await loadFeeRecommendations()
+                
                 // Get the latest confirmed blocks (last 10)
                 try await loadConfirmedBlocks()
+                
+                // Get average fees for confirmed blocks
+                try await loadBlockAverageFees()
                 
                 // Get mempool transactions
                 try await loadMempoolTransactions()
@@ -78,7 +88,27 @@ class MempoolViewModel: ObservableObject {
     // Load mempool transactions
     private func loadMempoolTransactions() async throws {
         let transactions = try await mempoolService.getRecentMempoolTransactions()
-        self.mempoolTransactions = transactions.map { $0.txid }
+        self.mempoolTransactions = transactions
+    }
+    
+    // Load fee recommendations
+    private func loadFeeRecommendations() async throws {
+        let fees = try await mempoolService.getFeeRecommendations()
+        self.feeRecommendations = fees
+    }
+    
+    // Load average fees for confirmed blocks
+    private func loadBlockAverageFees() async throws {
+        var averageFees: [String: Int] = [:]
+        
+        // Get average fee for each confirmed block
+        for block in confirmedBlocks {
+            if let avgFee = try? await mempoolService.getBlockAverageFee(blockHash: block.hash) {
+                averageFees[block.hash] = avgFee
+            }
+        }
+        
+        self.blockAverageFees = averageFees
     }
     
     // MARK: - Selection Methods

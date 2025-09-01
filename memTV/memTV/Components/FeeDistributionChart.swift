@@ -12,11 +12,12 @@ struct FeeDistributionChart: View {
     let maxHeight: CGFloat = 150
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 24) {
             Text("Fee Distribution")
                 .font(.title3)
                 .fontWeight(.semibold)
                 .foregroundColor(.white)
+                .padding(.bottom, 8)
             
             if feeData.isEmpty {
                 // Placeholder state
@@ -29,20 +30,33 @@ struct FeeDistributionChart: View {
                             .foregroundColor(.gray)
                     )
             } else {
-                // Chart area
-                HStack(alignment: .bottom, spacing: 2) {
-                    ForEach(Array(feeData.enumerated()), id: \.offset) { index, range in
-                        FeeBar(
-                            feeRange: range,
-                            height: calculateBarHeight(for: range),
-                            color: colorForFeeRange(range)
-                        )
+                // Chart with axes
+                HStack(alignment: .bottom, spacing: 0) {
+                    // Y-axis
+                    YAxisView(maxTxCount: feeData.map({ $0.txCount }).max() ?? 0, height: maxHeight)
+                    
+                    // Chart area
+                    GeometryReader { geometry in
+                        HStack(alignment: .bottom, spacing: calculateSpacing(for: geometry.size.width)) {
+                            ForEach(Array(feeData.enumerated()), id: \.offset) { index, range in
+                                FeeBar(
+                                    feeRange: range,
+                                    height: calculateBarHeight(for: range),
+                                    color: colorForFeeRange(range),
+                                    width: calculateBarWidth(for: geometry.size.width)
+                                )
+                            }
+                        }
                     }
+                    .frame(height: maxHeight)
                 }
-                .frame(height: maxHeight)
                 
-                // Legend
-                FeeDistributionLegend()
+                // Legend with proper spacing
+                VStack(spacing: 0) {
+                    Spacer()
+                        .frame(height: 12)
+                    FeeDistributionLegend()
+                }
             }
         }
         .padding(16)
@@ -58,15 +72,31 @@ struct FeeDistributionChart: View {
     }
     
     private func colorForFeeRange(_ range: FeeRange) -> Color {
-        if range.minFee >= 50 {
-            return .red      // High priority
+        if range.minFee >= 60 {
+            return .red         // Very high priority (60+ sat/vB)
+        } else if range.minFee >= 45 {
+            return .pink        // High priority (45-59 sat/vB)
+        } else if range.minFee >= 30 {
+            return .orange      // Medium-high priority (30-44 sat/vB)
         } else if range.minFee >= 20 {
-            return .orange   // Medium priority
+            return .yellow      // Medium priority (20-29 sat/vB)
         } else if range.minFee >= 10 {
-            return .yellow   // Low priority
+            return .mint        // Low-medium priority (10-19 sat/vB)
         } else {
-            return .green    // Very low priority
+            return .green       // Low priority (1-9 sat/vB)
         }
+    }
+    
+    private func calculateBarWidth(for containerWidth: CGFloat) -> CGFloat {
+        let barCount = CGFloat(feeData.count)
+        let totalSpacing = calculateSpacing(for: containerWidth) * (barCount - 1)
+        let availableWidth = containerWidth - totalSpacing
+        return max(availableWidth / barCount, 1) // Minimum 1pt width
+    }
+    
+    private func calculateSpacing(for containerWidth: CGFloat) -> CGFloat {
+        // Use 2% of container width for spacing, minimum 2pts
+        return max(containerWidth * 0.02, 2)
     }
 }
 
@@ -76,26 +106,29 @@ struct FeeBar: View {
     let feeRange: FeeRange
     let height: CGFloat
     let color: Color
+    let width: CGFloat
     
     var body: some View {
         VStack {
             Spacer()
-            RoundedRectangle(cornerRadius: 2)
+            RoundedRectangle(cornerRadius: 4)
                 .fill(color)
-                .frame(width: 12, height: height)
+                .frame(width: width, height: height)
         }
     }
 }
 
 struct FeeDistributionLegend: View {
     var body: some View {
-        HStack(spacing: 16) {
-            LegendItem(color: .red, label: "High (50+ sat/vB)")
-            LegendItem(color: .orange, label: "Medium (20-49)")
-            LegendItem(color: .yellow, label: "Low (10-19)")
-            LegendItem(color: .green, label: "Very Low (<10)")
+        HStack(spacing: 12) {
+            LegendItem(color: .green, label: "Low (1-9)")
+            LegendItem(color: .mint, label: "Low-Med (10-19)")
+            LegendItem(color: .yellow, label: "Medium (20-29)")
+            LegendItem(color: .orange, label: "Med-High (30-44)")
+            LegendItem(color: .pink, label: "High (45-59)")
+            LegendItem(color: .red, label: "Very High (60+)")
         }
-        .font(.caption2)
+        .font(.system(size: 17))
     }
 }
 
@@ -110,6 +143,114 @@ struct LegendItem: View {
                 .frame(width: 8, height: 8)
             Text(label)
                 .foregroundColor(.gray)
+        }
+    }
+}
+
+struct YAxisView: View {
+    let maxTxCount: Int
+    let height: CGFloat
+    
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 0) {
+            // Y-axis labels from top to bottom
+            ForEach(yAxisLabels.reversed(), id: \.self) { value in
+                VStack {
+                    if value == yAxisLabels.last {
+                        Spacer().frame(height: 0)
+                    } else {
+                        Spacer()
+                    }
+                    
+                    Text("\(value)")
+                        .font(.system(size: 7))
+                        .foregroundColor(.gray)
+                        .frame(height: 12)
+                    
+                    if value == yAxisLabels.first {
+                        Spacer().frame(height: 0)
+                    } else {
+                        Spacer()
+                    }
+                }
+            }
+        }
+        .frame(width: 50, height: height)
+    }
+    
+    private var yAxisLabels: [Int] {
+        let stepCount = 5
+        let step = max(1, maxTxCount / stepCount)
+        let roundedStep = roundToNearestPowerOf10(step)
+        
+        var labels: [Int] = []
+        for i in 0...stepCount {
+            let value = i * roundedStep
+            if value <= maxTxCount * 110 / 100 { // Allow 10% overhead for better scaling
+                labels.append(value)
+            }
+        }
+        
+        if labels.last != maxTxCount && !labels.contains(where: { $0 >= maxTxCount }) {
+            labels.append(maxTxCount)
+        }
+        
+        return labels
+    }
+    
+    private func roundToNearestPowerOf10(_ number: Int) -> Int {
+        if number <= 0 { return 1 }
+        let digits = String(number).count
+        let powerOf10 = Int(pow(10.0, Double(digits - 1)))
+        return ((number / powerOf10) + (number % powerOf10 > 0 ? 1 : 0)) * powerOf10
+    }
+}
+
+struct XAxisView: View {
+    let feeData: [FeeRange]
+    
+    var body: some View {
+        GeometryReader { geometry in
+            HStack(alignment: .top, spacing: calculateSpacing(for: geometry.size.width)) {
+                ForEach(Array(feeData.enumerated()), id: \.offset) { index, range in
+                    VStack(spacing: 2) {
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.5))
+                            .frame(width: calculateBarWidth(for: geometry.size.width), height: 1)
+                        
+                        Text(formatFeeRange(range))
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                            .frame(width: calculateBarWidth(for: geometry.size.width))
+                            .rotationEffect(.degrees(-45))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                    }
+                    .frame(height: 30)
+                }
+            }
+        }
+        .frame(height: 30)
+    }
+    
+    private func calculateBarWidth(for containerWidth: CGFloat) -> CGFloat {
+        let barCount = CGFloat(feeData.count)
+        let totalSpacing = calculateSpacing(for: containerWidth) * (barCount - 1)
+        let availableWidth = containerWidth - totalSpacing
+        return max(availableWidth / barCount, 1)
+    }
+    
+    private func calculateSpacing(for containerWidth: CGFloat) -> CGFloat {
+        return max(containerWidth * 0.02, 2)
+    }
+    
+    private func formatFeeRange(_ range: FeeRange) -> String {
+        if range.minFee == range.maxFee {
+            return "\(range.minFee)"
+        } else if range.maxFee >= 100 {
+            return "\(range.minFee)+"
+        } else {
+            return "\(range.minFee)-\(range.maxFee)"
         }
     }
 }

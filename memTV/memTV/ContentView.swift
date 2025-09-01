@@ -38,8 +38,8 @@ struct ContentView: View {
                     Spacer()
                 }
                 .padding(.horizontal, 40)
-                .padding(.top, 40)
-                .padding(.bottom, 30)
+                .padding(.top, 25)
+                .padding(.bottom, 15)
                 
                 // Loading indicator
                 if viewModel.isLoading {
@@ -60,15 +60,28 @@ struct ContentView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 20) {
                                 // Mempool transactions first (representing pending/future)
-                                ForEach(Array(viewModel.mempoolTransactions.enumerated()).prefix(8), id: \.element) { index, txId in
+                                // Sort by position: lower position numbers (closest to confirmation) on the right
+                                ForEach(Array(viewModel.mempoolTransactions.sorted { $0.position < $1.position }.enumerated()).prefix(8), id: \.element.txid) { index, transaction in
+                                    let displayNumber = transaction.txid.prefix(8).hashValue % 100000
+                                    let blockDuration = 10
+                                    let mempoolBlockCount = viewModel.mempoolTransactions.count
+                                    let estimatedTime = (mempoolBlockCount - transaction.position) * blockDuration
+                                    
                                     Button {
-                                        viewModel.selectBlock(.mempool(txId, txId.prefix(8).hashValue % 100000))
+                                        viewModel.selectBlock(.mempool(transaction))
                                     } label: {
                                         BlockView(
-                                            blockNumber: txId.prefix(8).hashValue % 100000, 
+                                            blockNumber: displayNumber, 
                                             isConfirmed: false,
-                                            transactionCount: nil,
-                                            isSelected: isBlockSelected(txId: txId, displayNumber: txId.prefix(8).hashValue % 100000),
+                                            feeInfo: FeeInfo(
+                                                highPriority: 0,
+                                                mediumPriority: 0,
+                                                lowPriority: 0,
+                                                estimatedMinutes: estimatedTime,
+                                                averageFee: nil,
+                                                medianFee: transaction.medianFee
+                                            ),
+                                            isSelected: isBlockSelected(txId: transaction.txid, displayNumber: displayNumber),
                                             onTap: { }
                                         )
                                     }
@@ -82,14 +95,20 @@ struct ContentView: View {
                                     .padding(.horizontal, 10)
                                 
                                 // Confirmed blocks (representing established timeline)
-                                ForEach(viewModel.confirmedBlocks.reversed(), id: \.hash) { block in
+                                ForEach(viewModel.confirmedBlocks, id: \.hash) { block in
                                     Button {
                                         viewModel.selectBlock(.confirmed(block))
                                     } label: {
                                         BlockView(
                                             blockNumber: block.height, 
                                             isConfirmed: true,
-                                            transactionCount: block.txCount,
+                                            feeInfo: FeeInfo(
+                                                highPriority: 0,
+                                                mediumPriority: 0,
+                                                lowPriority: 0,
+                                                estimatedMinutes: 0,
+                                                averageFee: viewModel.blockAverageFees[block.hash]
+                                            ),
                                             isSelected: isBlockSelected(block: block),
                                             onTap: { }
                                         )
@@ -100,12 +119,12 @@ struct ContentView: View {
                             .padding(.horizontal, 40)
                         }
                         .frame(maxHeight: 250)
-                        .padding(.vertical, 20)
+                        .padding(.vertical, 10)
                         
                         // Block details section - bottom two-thirds
                         if let selectedBlock = viewModel.selectedBlock {
                             BlockDetailView(selectedBlock: selectedBlock)
-                                .padding(.top, 20)
+                                .padding(.top, 10)
                         } else {
                             VStack {
                                 Spacer()
@@ -134,7 +153,7 @@ struct ContentView: View {
         switch viewModel.selectedBlock {
         case .confirmed(let selectedBlock):
             return selectedBlock.hash == block.hash
-        case .mempool(_, _):
+        case .mempool(_):
             return false
         case .none:
             return false
@@ -143,8 +162,8 @@ struct ContentView: View {
     
     private func isBlockSelected(txId: String, displayNumber: Int) -> Bool {
         switch viewModel.selectedBlock {
-        case .mempool(let selectedTxId, _):
-            return selectedTxId == txId
+        case .mempool(let selectedTransaction):
+            return selectedTransaction.txid == txId
         case .confirmed(_):
             return false
         case .none:
