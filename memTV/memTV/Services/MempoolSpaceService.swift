@@ -8,7 +8,7 @@
 import Foundation
 
 class MempoolSpaceService: ObservableObject {
-    private let baseURL = "https://mempool.space/api"
+    private let baseURL = "https://mempool.space/api/v1"
     
     // MARK: - Public Methods
     
@@ -67,23 +67,14 @@ class MempoolSpaceService: ObservableObject {
         }
     }
     
-    // Get recent mempool transactions using the correct endpoint
+    // Get recent mempool transactions - using mock data for now since mempool.space 
+    // doesn't provide a simple endpoint for recent mempool transactions
     func getRecentMempoolTransactions() async throws -> [MempoolTransaction] {
-        // Use the mempool endpoint to get current mempool data
-        let url = URL(string: "\(baseURL)/mempool")!
-        let (data, _) = try await URLSession.shared.data(from: url)
-        
-        let mempoolData = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
-        
-        // Create mock transactions based on mempool count - showing top 5 next to confirm
-        let count = mempoolData["count"] as? Int ?? 0
-        let minCount = min(count, 5) // Limit to 5 transactions (next to be confirmed)
-        
+        // Create mock transactions representing the next few blocks to be confirmed
         var transactions: [MempoolTransaction] = []
-        for i in 0..<minCount {
-            // Create synthetic transaction data for display (ordered by priority/fee)
+        for i in 0..<8 {
             transactions.append(MempoolTransaction(
-                txid: "next_tx_\(i)",
+                txid: "mempool_tx_\(i)_\(Date().timeIntervalSince1970)",
                 fee: 5000 - i * 200, // Higher fees first (more likely to confirm next)
                 vsize: 220 + i * 15
             ))

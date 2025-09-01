@@ -31,8 +31,8 @@ struct BlockView: View {
             if isSelected {
                 Triangle()
                     .fill(Color.white)
-                    .frame(width: 20, height: 15)
-                    .offset(y: 5)
+                    .frame(width: 40, height: 20)
+                    .offset(y: 1)
             } else {
                 Spacer()
                     .frame(height: 20)
@@ -49,24 +49,24 @@ struct BlockView: View {
                                 // Confirmed block: show block number and average fee
                                 VStack(spacing: 1) {
                                     Text("Block")
-                                        .font(.system(size: 9))
+                                        .font(.system(size: 20))
                                         .foregroundColor(.black)
                                         .opacity(0.7)
                                     
                                     Text("\(blockNumber)")
-                                        .font(.system(size: 14))
+                                        .font(.system(size: 25))
                                         .fontWeight(.bold)
                                         .foregroundColor(.black)
                                     
                                     if let avgFee = fees.averageFee {
                                         Text("Avg: \(avgFee)")
-                                            .font(.system(size: 9))
+                                            .font(.system(size: 17))
                                             .fontWeight(.medium)
                                             .foregroundColor(.black)
                                             .padding(.top, 1)
                                         
                                         Text("sat/vB")
-                                            .font(.system(size: 8))
+                                            .font(.system(size: 14))
                                             .foregroundColor(.black)
                                             .opacity(0.6)
                                     }
@@ -77,46 +77,46 @@ struct BlockView: View {
                                     Group {
                                         HStack(spacing: 4) {
                                             Text("H:")
-                                                .font(.system(size: 9))
+                                                .font(.system(size: 20))
                                                 .fontWeight(.bold)
                                                 .foregroundColor(.black)
                                             Text("\(fees.highPriority)")
-                                                .font(.system(size: 9))
+                                                .font(.system(size: 20))
                                                 .fontWeight(.medium)
                                                 .foregroundColor(.black)
                                         }
                                         
                                         HStack(spacing: 4) {
                                             Text("M:")
-                                                .font(.system(size: 9))
+                                                .font(.system(size: 20))
                                                 .fontWeight(.bold)
                                                 .foregroundColor(.black)
                                             Text("\(fees.mediumPriority)")
-                                                .font(.system(size: 9))
+                                                .font(.system(size: 20))
                                                 .fontWeight(.medium)
                                                 .foregroundColor(.black)
                                         }
                                         
                                         HStack(spacing: 4) {
                                             Text("L:")
-                                                .font(.system(size: 9))
+                                                .font(.system(size: 20))
                                                 .fontWeight(.bold)
                                                 .foregroundColor(.black)
                                             Text("\(fees.lowPriority)")
-                                                .font(.system(size: 9))
+                                                .font(.system(size: 20))
                                                 .fontWeight(.medium)
                                                 .foregroundColor(.black)
                                         }
                                     }
                                     
                                     Text("sat/vB")
-                                        .font(.system(size: 8))
+                                        .font(.system(size: 12))
                                         .foregroundColor(.black)
                                         .opacity(0.6)
                                         .padding(.top, 1)
                                     
                                     Text("~\(fees.estimatedMinutes)min")
-                                        .font(.system(size: 9))
+                                        .font(.system(size: 20))
                                         .fontWeight(.semibold)
                                         .foregroundColor(.black)
                                         .padding(.top, 2)
@@ -124,7 +124,7 @@ struct BlockView: View {
                             }
                         } else {
                             Text("\(blockNumber)")
-                                .font(.caption)
+                                .font(.system(size: 16))
                                 .foregroundColor(.black)
                                 .bold()
                         }
@@ -157,10 +157,10 @@ struct BlockView: View {
 struct Triangle: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.move(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
         return path
     }
 }
