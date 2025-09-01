@@ -8,11 +8,21 @@
 import SwiftUI
 
 struct FeeInfo {
-    let highPriority: Int    // sat/vB (mempool only)
-    let mediumPriority: Int  // sat/vB (mempool only) 
-    let lowPriority: Int     // sat/vB (mempool only)
+    let highPriority: Int    // sat/vB (mempool only - deprecated)
+    let mediumPriority: Int  // sat/vB (mempool only - deprecated) 
+    let lowPriority: Int     // sat/vB (mempool only - deprecated)
     let estimatedMinutes: Int // minutes until confirmation (mempool only)
     let averageFee: Int?     // average fee in block (confirmed only)
+    let medianFee: Int?      // median fee in sat/vB (mempool only)
+    
+    init(highPriority: Int = 0, mediumPriority: Int = 0, lowPriority: Int = 0, estimatedMinutes: Int = 0, averageFee: Int? = nil, medianFee: Int? = nil) {
+        self.highPriority = highPriority
+        self.mediumPriority = mediumPriority
+        self.lowPriority = lowPriority
+        self.estimatedMinutes = estimatedMinutes
+        self.averageFee = averageFee
+        self.medianFee = medianFee
+    }
 }
 
 struct BlockView: View {
@@ -72,54 +82,30 @@ struct BlockView: View {
                                     }
                                 }
                             } else {
-                                // Mempool: show fee priorities and confirmation time
-                                VStack(spacing: 0) {
-                                    Group {
-                                        HStack(spacing: 4) {
-                                            Text("H:")
-                                                .font(.system(size: 20))
-                                                .fontWeight(.bold)
-                                                .foregroundColor(.black)
-                                            Text("\(fees.highPriority)")
-                                                .font(.system(size: 20))
-                                                .fontWeight(.medium)
-                                                .foregroundColor(.black)
-                                        }
+                                // Mempool: show median fee and confirmation time
+                                VStack(spacing: 2) {
+                                    Text("Median")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(.black)
+                                        .opacity(0.7)
+                                    
+                                    if let medianFee = fees.medianFee {
+                                        Text("\(medianFee)")
+                                            .font(.system(size: 30))
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.black)
                                         
-                                        HStack(spacing: 4) {
-                                            Text("M:")
-                                                .font(.system(size: 20))
-                                                .fontWeight(.bold)
-                                                .foregroundColor(.black)
-                                            Text("\(fees.mediumPriority)")
-                                                .font(.system(size: 20))
-                                                .fontWeight(.medium)
-                                                .foregroundColor(.black)
-                                        }
-                                        
-                                        HStack(spacing: 4) {
-                                            Text("L:")
-                                                .font(.system(size: 20))
-                                                .fontWeight(.bold)
-                                                .foregroundColor(.black)
-                                            Text("\(fees.lowPriority)")
-                                                .font(.system(size: 20))
-                                                .fontWeight(.medium)
-                                                .foregroundColor(.black)
-                                        }
+                                        Text("sat/vB")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.black)
+                                            .opacity(0.6)
                                     }
                                     
-                                    Text("sat/vB")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.black)
-                                        .opacity(0.6)
-                                        .padding(.top, 1)
-                                    
                                     Text("~\(fees.estimatedMinutes)min")
-                                        .font(.system(size: 20))
+                                        .font(.system(size: 18))
                                         .fontWeight(.semibold)
                                         .foregroundColor(.black)
-                                        .padding(.top, 2)
+                                        .padding(.top, 4)
                                 }
                             }
                         } else {
@@ -187,11 +173,8 @@ struct Triangle: Shape {
             blockNumber: 12345, 
             isConfirmed: false, 
             feeInfo: FeeInfo(
-                highPriority: 52,
-                mediumPriority: 28,
-                lowPriority: 15,
                 estimatedMinutes: 8,
-                averageFee: nil
+                medianFee: 45
             ),
             isSelected: false,
             onTap: {}

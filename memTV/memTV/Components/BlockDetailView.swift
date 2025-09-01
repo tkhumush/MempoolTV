@@ -11,7 +11,7 @@ struct BlockDetailView: View {
     let selectedBlock: SelectedBlockType
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 15) {
             // Header
             HStack {
                 Text(blockTitle)
@@ -21,27 +21,94 @@ struct BlockDetailView: View {
                 Spacer()
                 StatusBadge(isConfirmed: isConfirmed)
             }
-            .padding(.bottom, 10)
+            .padding(.bottom, 5)
             
-            // Details Grid
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 2), alignment: .leading, spacing: 20) {
-                DetailCard(title: "Number", value: blockNumber)
-                DetailCard(title: "Hash", value: hashValue)
-                
-                if let txCount = transactionCount {
-                    DetailCard(title: "Transactions", value: "\(txCount)")
-                }
-                
-                if let timestamp = blockTimestamp {
-                    DetailCard(title: "Time", value: timestamp)
-                }
+            switch selectedBlock {
+            case .confirmed(_):
+                // Existing confirmed block layout
+                confirmedBlockView
+            case .mempool(let transaction):
+                // New mempool block layout
+                mempoolBlockView(transaction: transaction)
             }
             
             Spacer()
         }
-        .padding(40)
+        .padding(30)
         .background(Color.black.opacity(0.8))
         .cornerRadius(20)
+    }
+    
+    // MARK: - Confirmed Block View
+    
+    private var confirmedBlockView: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 2), alignment: .leading, spacing: 20) {
+            DetailCard(title: "Number", value: blockNumber)
+            DetailCard(title: "Hash", value: hashValue)
+            
+            if let txCount = transactionCount {
+                DetailCard(title: "Transactions", value: "\(txCount)")
+            }
+            
+            if let timestamp = blockTimestamp {
+                DetailCard(title: "Time", value: timestamp)
+            }
+        }
+    }
+    
+    // MARK: - Mempool Block View
+    
+    private func mempoolBlockView(transaction: MempoolTransaction) -> some View {
+        HStack(alignment: .top, spacing: 30) {
+            // Left side: Data table
+            VStack(alignment: .leading, spacing: 15) {
+                Text("Block Statistics")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .padding(.bottom, 2)
+                
+                MempoolDataTable(transaction: transaction)
+                
+                // Placeholder for fee spread chart
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Transaction Fee Spread")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(height: 120)
+                        .overlay(
+                            Text("Fee Distribution Chart\n(Coming Soon)")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                                .multilineTextAlignment(.center)
+                        )
+                        .cornerRadius(8)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            
+            // Right side: Transaction visualization
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Transactions by Size")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                
+                Rectangle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(height: 250)
+                    .overlay(
+                        Text("Transaction Size\nVisualization\n(Coming Soon)")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            .multilineTextAlignment(.center)
+                    )
+                    .cornerRadius(8)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
     
     // MARK: - Computed Properties
@@ -50,7 +117,7 @@ struct BlockDetailView: View {
         switch selectedBlock {
         case .confirmed(_):
             return true
-        case .mempool(_, _):
+        case .mempool(_):
             return false
         }
     }
@@ -59,8 +126,8 @@ struct BlockDetailView: View {
         switch selectedBlock {
         case .confirmed(_):
             return "Confirmed Block"
-        case .mempool(_, _):
-            return "Mempool Transaction"
+        case .mempool(_):
+            return "Mempool Block"
         }
     }
     
@@ -68,8 +135,8 @@ struct BlockDetailView: View {
         switch selectedBlock {
         case .confirmed(let block):
             return "\(block.height)"
-        case .mempool(_, let displayNumber):
-            return "\(displayNumber)"
+        case .mempool(let transaction):
+            return String(transaction.txid.prefix(8).hashValue % 100000)
         }
     }
     
@@ -77,8 +144,8 @@ struct BlockDetailView: View {
         switch selectedBlock {
         case .confirmed(let block):
             return String(block.hash.prefix(16)) + "..."
-        case .mempool(let txId, _):
-            return String(txId.prefix(16)) + "..."
+        case .mempool(let transaction):
+            return String(transaction.txid.prefix(16)) + "..."
         }
     }
     
@@ -86,7 +153,7 @@ struct BlockDetailView: View {
         switch selectedBlock {
         case .confirmed(let block):
             return block.txCount
-        case .mempool(_, _):
+        case .mempool(_):
             return nil
         }
     }
@@ -99,7 +166,7 @@ struct BlockDetailView: View {
             formatter.dateStyle = .short
             formatter.timeStyle = .short
             return formatter.string(from: date)
-        case .mempool(_, _):
+        case .mempool(_):
             return nil
         }
     }
@@ -144,6 +211,85 @@ struct DetailCard: View {
     }
 }
 
+// MARK: - Mempool Data Table
+
+struct MempoolDataTable: View {
+    let transaction: MempoolTransaction
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            // Median Fee
+            MempoolDataRow(
+                label: "Median Fee",
+                value: "~\(transaction.medianFee) sat/vB"
+            )
+            
+            // Fee Span
+            MempoolDataRow(
+                label: "Fee Span",
+                value: feeSpanText
+            )
+            
+            // Total Fees
+            MempoolDataRow(
+                label: "Total Fees",
+                value: totalFeesText
+            )
+            
+            // Number of Transactions
+            MempoolDataRow(
+                label: "Transactions",
+                value: "\(transaction.nTx)"
+            )
+            
+            // Block Size
+            MempoolDataRow(
+                label: "Block Size",
+                value: blockSizeText
+            )
+        }
+        .padding(20)
+        .background(Color.gray.opacity(0.1))
+        .cornerRadius(12)
+    }
+    
+    private var feeSpanText: String {
+        guard !transaction.feeRange.isEmpty else { return "N/A" }
+        let min = transaction.feeRange.min() ?? 0
+        let max = transaction.feeRange.max() ?? 0
+        return String(format: "%.2f - %.1f sat/vB", min, max)
+    }
+    
+    private var totalFeesText: String {
+        let btc = Double(transaction.totalFees) / 100_000_000.0 // Convert satoshis to BTC
+        return String(format: "%.3f BTC", btc)
+    }
+    
+    private var blockSizeText: String {
+        let mb = Double(transaction.blockSize) / 1_000_000.0 // Convert bytes to MB
+        return String(format: "%.2f MB", mb)
+    }
+}
+
+struct MempoolDataRow: View {
+    let label: String
+    let value: String
+    
+    var body: some View {
+        HStack {
+            Text(label + ":")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.gray)
+            
+            Spacer()
+            
+            Text(value)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.white)
+        }
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
@@ -152,7 +298,21 @@ struct DetailCard: View {
             Block(hash: "0000000000000000000123456789abcdef", height: 800000, time: 1693478400, txCount: 2341)
         ))
         
-        BlockDetailView(selectedBlock: .mempool("abc123def456ghi789jkl", 12345))
+        BlockDetailView(selectedBlock: .mempool(
+            MempoolTransaction(
+                txid: "abc123def456ghi789jkl",
+                fee: 12500,
+                vsize: 250,
+                position: 0,
+                estimatedConfirmationTime: 10,
+                medianFee: 45,
+                blockSize: 1710000,
+                blockVSize: 999500,
+                nTx: 3752,
+                totalFees: 10500000,
+                feeRange: [0.29, 15.6, 32.1, 45.2, 67.8, 89.3, 153.2]
+            )
+        ))
     }
     .background(Color.black)
 }

@@ -11,7 +11,7 @@ import SwiftUI
 // MARK: - Selection Types
 enum SelectedBlockType {
     case confirmed(Block)
-    case mempool(String, Int) // txId, displayNumber
+    case mempool(MempoolTransaction) // Full transaction data
 }
 
 @MainActor

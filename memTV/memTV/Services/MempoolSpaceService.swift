@@ -67,34 +67,68 @@ class MempoolSpaceService: ObservableObject {
         }
     }
     
-    // Get recent mempool transactions with position-based fee information
+    // Get recent mempool blocks with median fee information
     func getRecentMempoolTransactions() async throws -> [MempoolTransaction] {
-        // Get base fee recommendations first
-        let baseFees = try await getFeeRecommendations()
+        let url = URL(string: "\(baseURL)/fees/mempool-blocks")!
+        let (data, _) = try await URLSession.shared.data(from: url)
         
-        // Create mock transactions representing the next few blocks to be confirmed
-        // Each position represents different confirmation priority and timing
-        var transactions: [MempoolTransaction] = []
+        let mempoolBlocks = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] ?? []
         let timestamp = Date().timeIntervalSince1970
         
-        for i in 0..<8 {
-            // Position 0 = furthest from confirmation (lowest fees, longest time) - leftmost
-            // Position 7 = next to confirm (highest fees, shortest time) - rightmost, next to confirmed blocks
-            let position = i
+        var transactions: [MempoolTransaction] = []
+        
+        // Create 8 mempool blocks with correct positioning
+        // Position 0 = rightmost (next to confirm), Position 7 = leftmost (furthest)
+        for position in 0..<8 {
+            let apiIndex = 7 - position // Map position to API array: position 0 uses mempoolBlocks[7], position 7 uses mempoolBlocks[0]
+            let medianFee: Double
+            let estimatedTime: Int
             
-            // Calculate position-based fee multipliers (reversed logic)
-            let feeMultiplier = 1.0 + (Double(position) * 0.1) // Increases by 10% each position (higher fees as we get closer to confirmation)
-            let timeMultiplier = 1.0 - (Double(position) * 0.1) // Decreases by 10% each position (shorter time as we get closer to confirmation)
-            
-            let transaction = MempoolTransaction(
-                txid: "mempool_tx_\(i)_\(Int(timestamp))",
-                fee: Int(Double(baseFees.high) * feeMultiplier) + (position * 5), // Higher fees for positions closer to confirmation
-                vsize: 220 + i * 15,
-                position: position,
-                estimatedConfirmationTime: max(Int(Double(baseFees.estimatedMinutes) * timeMultiplier), 5) // Shorter time for positions closer to confirmation, minimum 5 minutes
-            )
-            
-            transactions.append(transaction)
+            if apiIndex < mempoolBlocks.count {
+                // Use real data from mempool.space - medianFee is a Double
+                let blockData = mempoolBlocks[apiIndex]
+                medianFee = blockData["medianFee"] as? Double ?? 1.0
+                // Position 0 (rightmost) = shortest time (~10min), Position 7 (leftmost) = longest time (~80min)
+                estimatedTime = 10 + (position * 10)
+                
+                // Extract additional mempool block data
+                let blockSize = blockData["blockSize"] as? Int ?? 0
+                let blockVSize = blockData["blockVSize"] as? Int ?? 0
+                let nTx = blockData["nTx"] as? Int ?? 0
+                let totalFees = blockData["totalFees"] as? Int ?? 0
+                let feeRange = blockData["feeRange"] as? [Double] ?? []
+                
+                let transaction = MempoolTransaction(
+                    txid: "mempool_block_\(position)_\(Int(timestamp))",
+                    fee: Int(medianFee * 250), // Convert sat/vB to total fee (assuming ~250 vB transaction)
+                    vsize: 250,
+                    position: position,
+                    estimatedConfirmationTime: estimatedTime,
+                    medianFee: Int(max(ceil(medianFee), 1)), // Round up, minimum 1 sat/vB for display
+                    blockSize: blockSize,
+                    blockVSize: blockVSize,
+                    nTx: nTx,
+                    totalFees: totalFees,
+                    feeRange: feeRange
+                )
+                
+                transactions.append(transaction)
+            } else {
+                // Fallback for positions beyond available data
+                medianFee = max(1.0 - (Double(position) * 0.1), 0.1) // Lower fees for higher positions
+                estimatedTime = 10 + (position * 10)
+                
+                let transaction = MempoolTransaction(
+                    txid: "mempool_block_\(position)_\(Int(timestamp))",
+                    fee: Int(medianFee * 250), // Convert sat/vB to total fee (assuming ~250 vB transaction)
+                    vsize: 250,
+                    position: position,
+                    estimatedConfirmationTime: estimatedTime,
+                    medianFee: Int(max(ceil(medianFee), 1)) // Round up, minimum 1 sat/vB for display
+                )
+                
+                transactions.append(transaction)
+            }
         }
         
         return transactions
@@ -109,6 +143,14 @@ struct MempoolTransaction {
     let vsize: Int
     let position: Int // Position in confirmation queue (0 = next to confirm)
     let estimatedConfirmationTime: Int // Minutes until confirmation
+    let medianFee: Int // Median fee in sat/vB from mempool.space
+    
+    // Additional mempool block data from API
+    let blockSize: Int // Total block size in bytes
+    let blockVSize: Int // Virtual block size
+    let nTx: Int // Number of transactions
+    let totalFees: Int // Total fees in satoshis
+    let feeRange: [Double] // Array of fee values showing the spread
     
     init(from dictionary: [String: Any]) {
         self.txid = dictionary["txid"] as? String ?? ""
@@ -116,23 +158,26 @@ struct MempoolTransaction {
         self.vsize = dictionary["vsize"] as? Int ?? 0
         self.position = dictionary["position"] as? Int ?? 0
         self.estimatedConfirmationTime = dictionary["estimatedConfirmationTime"] as? Int ?? 30
+        self.medianFee = dictionary["medianFee"] as? Int ?? 25
+        self.blockSize = dictionary["blockSize"] as? Int ?? 0
+        self.blockVSize = dictionary["blockVSize"] as? Int ?? 0
+        self.nTx = dictionary["nTx"] as? Int ?? 0
+        self.totalFees = dictionary["totalFees"] as? Int ?? 0
+        self.feeRange = dictionary["feeRange"] as? [Double] ?? []
     }
     
-    init(txid: String, fee: Int, vsize: Int, position: Int = 0, estimatedConfirmationTime: Int = 30) {
+    init(txid: String, fee: Int, vsize: Int, position: Int = 0, estimatedConfirmationTime: Int = 30, medianFee: Int = 25, blockSize: Int = 0, blockVSize: Int = 0, nTx: Int = 0, totalFees: Int = 0, feeRange: [Double] = []) {
         self.txid = txid
         self.fee = fee
         self.vsize = vsize
         self.position = position
         self.estimatedConfirmationTime = estimatedConfirmationTime
-    }
-    
-    // Calculate fee rates based on position for display
-    var displayFeeInfo: (high: Int, medium: Int, low: Int) {
-        let baseFee = fee / vsize // Calculate sat/vB
-        let high = baseFee + (5 - position) // Higher priority fees for earlier positions
-        let medium = Int(Double(high) * 0.7) // 70% of high fee
-        let low = Int(Double(high) * 0.5) // 50% of high fee
-        return (high: max(high, 1), medium: max(medium, 1), low: max(low, 1))
+        self.medianFee = medianFee
+        self.blockSize = blockSize
+        self.blockVSize = blockVSize
+        self.nTx = nTx
+        self.totalFees = totalFees
+        self.feeRange = feeRange
     }
 }
 
