@@ -17,7 +17,7 @@ enum SelectedBlockType {
 @MainActor
 class MempoolViewModel: ObservableObject {
     @Published var confirmedBlocks: [Block] = []
-    @Published var mempoolTransactions: [String] = []
+    @Published var mempoolTransactions: [MempoolTransaction] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var selectedBlock: SelectedBlockType?
@@ -88,7 +88,7 @@ class MempoolViewModel: ObservableObject {
     // Load mempool transactions
     private func loadMempoolTransactions() async throws {
         let transactions = try await mempoolService.getRecentMempoolTransactions()
-        self.mempoolTransactions = transactions.map { $0.txid }
+        self.mempoolTransactions = transactions
     }
     
     // Load fee recommendations

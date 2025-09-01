@@ -60,21 +60,24 @@ struct ContentView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 20) {
                                 // Mempool transactions first (representing pending/future)
-                                ForEach(Array(viewModel.mempoolTransactions.enumerated()).prefix(8), id: \.element) { index, txId in
+                                ForEach(Array(viewModel.mempoolTransactions.enumerated()).prefix(8), id: \.element.txid) { index, transaction in
+                                    let displayNumber = transaction.txid.prefix(8).hashValue % 100000
+                                    let feeInfo = transaction.displayFeeInfo
+                                    
                                     Button {
-                                        viewModel.selectBlock(.mempool(txId, txId.prefix(8).hashValue % 100000))
+                                        viewModel.selectBlock(.mempool(transaction.txid, displayNumber))
                                     } label: {
                                         BlockView(
-                                            blockNumber: txId.prefix(8).hashValue % 100000, 
+                                            blockNumber: displayNumber, 
                                             isConfirmed: false,
                                             feeInfo: FeeInfo(
-                                                highPriority: viewModel.feeRecommendations.high,
-                                                mediumPriority: viewModel.feeRecommendations.medium,
-                                                lowPriority: viewModel.feeRecommendations.low,
-                                                estimatedMinutes: viewModel.feeRecommendations.estimatedMinutes,
+                                                highPriority: feeInfo.high,
+                                                mediumPriority: feeInfo.medium,
+                                                lowPriority: feeInfo.low,
+                                                estimatedMinutes: transaction.estimatedConfirmationTime,
                                                 averageFee: nil
                                             ),
-                                            isSelected: isBlockSelected(txId: txId, displayNumber: txId.prefix(8).hashValue % 100000),
+                                            isSelected: isBlockSelected(txId: transaction.txid, displayNumber: displayNumber),
                                             onTap: { }
                                         )
                                     }
