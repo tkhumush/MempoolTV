@@ -95,7 +95,7 @@ struct ContentView: View {
                                     .padding(.horizontal, 10)
                                 
                                 // Confirmed blocks (representing established timeline)
-                                ForEach(viewModel.confirmedBlocks.reversed(), id: \.hash) { block in
+                                ForEach(viewModel.confirmedBlocks, id: \.hash) { block in
                                     Button {
                                         viewModel.selectBlock(.confirmed(block))
                                     } label: {
