@@ -9,16 +9,10 @@ import SwiftUI
 
 struct FeeDistributionChart: View {
     let feeData: [FeeRange]
-    let maxHeight: CGFloat = 150
+    let maxHeight: CGFloat = 200
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            Text("Fee Distribution")
-                .font(.title3)
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
-                .padding(.bottom, 8)
-            
+        VStack(alignment: .leading, spacing: 10) {
             if feeData.isEmpty {
                 // Placeholder state
                 RoundedRectangle(cornerRadius: 8)
@@ -56,10 +50,9 @@ struct FeeDistributionChart: View {
                     Spacer()
                         .frame(height: 12)
                     FeeDistributionLegend()
-                }
+                }.padding()
             }
         }
-        .padding(16)
         .background(Color.gray.opacity(0.1))
         .cornerRadius(12)
     }
@@ -111,16 +104,16 @@ struct FeeBar: View {
     var body: some View {
         VStack {
             Spacer()
-            RoundedRectangle(cornerRadius: 4)
+            RoundedRectangle(cornerRadius: 15)
                 .fill(color)
-                .frame(width: width, height: height)
+                .frame(width: width-3, height: height)
         }
     }
 }
 
 struct FeeDistributionLegend: View {
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 20) {
             LegendItem(color: .green, label: "Low (1-9)")
             LegendItem(color: .mint, label: "Low-Med (10-19)")
             LegendItem(color: .yellow, label: "Medium (20-29)")
@@ -129,6 +122,7 @@ struct FeeDistributionLegend: View {
             LegendItem(color: .red, label: "Very High (60+)")
         }
         .font(.system(size: 17))
+        .padding(.leading , 30)
     }
 }
 
@@ -157,25 +151,25 @@ struct YAxisView: View {
             ForEach(yAxisLabels.reversed(), id: \.self) { value in
                 VStack {
                     if value == yAxisLabels.last {
-                        Spacer().frame(height: 0)
+                        Spacer().frame(height: 100)
                     } else {
                         Spacer()
                     }
                     
                     Text("\(value)")
-                        .font(.system(size: 7))
+                        .font(.system(size: 20))
                         .foregroundColor(.gray)
                         .frame(height: 12)
                     
                     if value == yAxisLabels.first {
-                        Spacer().frame(height: 0)
+                        Spacer().frame(height: 400)
                     } else {
                         Spacer()
                     }
                 }
             }
         }
-        .frame(width: 50, height: height)
+        .frame(width: 50, height: 1)
     }
     
     private var yAxisLabels: [Int] {
@@ -259,7 +253,7 @@ struct XAxisView: View {
 
 struct FeeRange {
     let minFee: Int      // Minimum fee in sat/vB
-    let maxFee: Int      // Maximum fee in sat/vB  
+    let maxFee: Int      // Maximum fee in sat/vB
     let txCount: Int     // Number of transactions in this range
     
     init(minFee: Int, maxFee: Int, txCount: Int) {

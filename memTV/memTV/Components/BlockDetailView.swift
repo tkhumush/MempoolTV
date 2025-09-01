@@ -11,17 +11,17 @@ struct BlockDetailView: View {
     let selectedBlock: SelectedBlockType
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 15) {
+        VStack(alignment: .leading, spacing: 1) {
             // Header
             HStack {
                 Text(blockTitle)
-                    .font(.largeTitle)
+                    .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(.white)
                 Spacer()
                 StatusBadge(isConfirmed: isConfirmed)
             }
-            .padding(.bottom, 5)
+            .padding(.bottom, 1)
             
             switch selectedBlock {
             case .confirmed(_):
@@ -31,20 +31,8 @@ struct BlockDetailView: View {
                 // New mempool block layout
                 mempoolBlockView(transaction: transaction)
             }
-            
-            // Fee Distribution Chart (only for mempool transactions)
-            if case .mempool(_) = selectedBlock {
-                HStack {
-                    FeeDistributionChart(feeData: mockFeeData)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Spacer()
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            
-            Spacer()
         }
-        .padding(30)
+        .padding(1)
         .background(Color.black.opacity(0.8))
         .cornerRadius(20)
     }
@@ -52,7 +40,7 @@ struct BlockDetailView: View {
     // MARK: - Confirmed Block View
     
     private var confirmedBlockView: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 2), alignment: .leading, spacing: 20) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 2), alignment: .leading, spacing: 5) {
             DetailCard(title: "Number", value: blockNumber)
             DetailCard(title: "Hash", value: hashValue)
             
@@ -69,36 +57,52 @@ struct BlockDetailView: View {
     // MARK: - Mempool Block View
     
     private func mempoolBlockView(transaction: MempoolTransaction) -> some View {
-        HStack(alignment: .top, spacing: 30) {
+        HStack(alignment: .top, spacing: 50) {
             // Left side: Data table
-            VStack(alignment: .leading, spacing: 15) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text("Block Statistics")
-                    .font(.title2)
+                    .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
                     .padding(.bottom, 2)
                 
                 MempoolDataTable(transaction: transaction)
-
+                
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Fee Distribution")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                
+                // Fee Distribution Chart (only for mempool transactions)
+                if case .mempool(_) = selectedBlock {
+                    HStack {
+                        FeeDistributionChart(feeData: mockFeeData)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             
             // Right side: Transaction visualization
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text("Transactions by Size")
-                    .font(.headline)
+                    .font(.subheadline)
                     .foregroundColor(.white)
                 
                 Rectangle()
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(height: 250)
+                    .fill(Color.gray.opacity(0.1))
+                    .frame(height: 545)
                     .overlay(
                         Text("Transaction Size\nVisualization\n(Coming Soon)")
                             .font(.caption)
                             .foregroundColor(.gray)
                             .multilineTextAlignment(.center)
                     )
-                    .cornerRadius(8)
+                    .cornerRadius(15)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -292,7 +296,7 @@ struct MempoolDataRow: View {
     var body: some View {
         HStack {
             Text(label + ":")
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: 20, weight: .medium))
                 .foregroundColor(.gray)
             
             Spacer()

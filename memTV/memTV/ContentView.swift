@@ -24,7 +24,7 @@ struct ContentView: View {
                         .fill(Color.orange)
                         .frame(width: 60, height: 60)
                         .overlay(
-                            Text("TV")
+                            Text("...")
                                 .font(.title2)
                                 .fontWeight(.bold)
                                 .foregroundColor(.black)
@@ -38,8 +38,8 @@ struct ContentView: View {
                     Spacer()
                 }
                 .padding(.horizontal, 40)
-                .padding(.top, 25)
-                .padding(.bottom, 15)
+                .padding(.top, 5)
+                .padding(.bottom, 1)
                 
                 // Loading indicator
                 if viewModel.isLoading {
