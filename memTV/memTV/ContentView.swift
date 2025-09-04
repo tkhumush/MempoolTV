@@ -12,32 +12,23 @@ struct ContentView: View {
     
     var body: some View {
         ZStack {
-            // Black background
-            Color.black
+            // Custom blue background (#3399CC)
+            Color(red: 51/255, green: 153/255, blue: 204/255)
                 .edgesIgnoringSafeArea(.all)
             
             VStack(spacing: 0) {
-                // Header with logo and app name
+                // Header with logo
                 HStack {
-                    // Logo placeholder (using a styled rectangle for now)
-                    Rectangle()
-                        .fill(Color.orange)
-                        .frame(width: 60, height: 60)
-                        .overlay(
-                            Text("...")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundColor(.black)
-                        )
-                    
-                    Text("memTV")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
+                    // App icon logo
+                    Image("AppIcon")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 120, height: 120)
+                        .cornerRadius(12)
                     
                     Spacer()
                 }
-                .padding(.horizontal, 40)
+                .padding(.horizontal, 1)
                 .padding(.top, 5)
                 .padding(.bottom, 1)
                 
@@ -71,7 +62,7 @@ struct ContentView: View {
                                         viewModel.selectBlock(.mempool(transaction))
                                     } label: {
                                         BlockView(
-                                            blockNumber: displayNumber, 
+                                            blockNumber: displayNumber,
                                             isConfirmed: false,
                                             feeInfo: FeeInfo(
                                                 highPriority: 0,
@@ -100,7 +91,7 @@ struct ContentView: View {
                                         viewModel.selectBlock(.confirmed(block))
                                     } label: {
                                         BlockView(
-                                            blockNumber: block.height, 
+                                            blockNumber: block.height,
                                             isConfirmed: true,
                                             feeInfo: FeeInfo(
                                                 highPriority: 0,
