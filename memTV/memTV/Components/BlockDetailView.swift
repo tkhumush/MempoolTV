@@ -89,6 +89,14 @@ struct BlockDetailView: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            
+            // Right side: Transaction visualization
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Top 10 Largest Transactions")
+                    .font(.subheadline)
+                    .foregroundColor(.white)
                 
                 // Top Transactions Chart (only for mempool transactions)
                 if case .mempool(let transaction) = selectedBlock {
@@ -97,25 +105,6 @@ struct BlockDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            
-            // Right side: Transaction visualization
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Transactions by Size")
-                    .font(.subheadline)
-                    .foregroundColor(.white)
-                
-                Rectangle()
-                    .fill(Color.gray.opacity(0.1))
-                    .frame(height: 545)
-                    .overlay(
-                        Text("Transaction Size\nVisualization\n(Coming Soon)")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                            .multilineTextAlignment(.center)
-                    )
-                    .cornerRadius(15)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
