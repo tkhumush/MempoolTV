@@ -32,9 +32,9 @@ struct BlockDetailView: View {
                 mempoolBlockView(transaction: transaction)
             }
         }
-        .padding(1)
+        .padding(10)
         .background(Color.black.opacity(0.8))
-        .cornerRadius(20)
+        .cornerRadius(10)
     }
     
     // MARK: - Confirmed Block View
@@ -69,17 +69,22 @@ struct BlockDetailView: View {
                 MempoolDataTable(transaction: transaction)
                 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Fee Distribution")
+                    Text("Block Fee Distribution")
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    Text("Fee spread for this mempool block")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 
                 // Fee Distribution Chart (only for mempool transactions)
-                if case .mempool(_) = selectedBlock {
+                if case .mempool(let transaction) = selectedBlock {
                     HStack {
-                        FeeDistributionChart(feeData: mockFeeData)
+                        FeeDistributionChart(feeData: generateFeeDistributionData(from: transaction))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .frame(maxWidth: .infinity)
                     }
@@ -168,25 +173,53 @@ struct BlockDetailView: View {
         }
     }
     
-    // Mock fee distribution data for testing
-    private var mockFeeData: [FeeRange] {
-        [
-            FeeRange(minFee: 1, maxFee: 5, txCount: 75),
-            FeeRange(minFee: 6, maxFee: 10, txCount: 95),
-            FeeRange(minFee: 11, maxFee: 15, txCount: 120),
-            FeeRange(minFee: 16, maxFee: 20, txCount: 140),
-            FeeRange(minFee: 21, maxFee: 25, txCount: 160),
-            FeeRange(minFee: 26, maxFee: 30, txCount: 180),
-            FeeRange(minFee: 31, maxFee: 35, txCount: 150),
-            FeeRange(minFee: 36, maxFee: 40, txCount: 130),
-            FeeRange(minFee: 41, maxFee: 45, txCount: 110),
-            FeeRange(minFee: 46, maxFee: 50, txCount: 95),
-            FeeRange(minFee: 51, maxFee: 55, txCount: 80),
-            FeeRange(minFee: 56, maxFee: 60, txCount: 65),
-            FeeRange(minFee: 61, maxFee: 65, txCount: 50),
-            FeeRange(minFee: 66, maxFee: 70, txCount: 40),
-            FeeRange(minFee: 71, maxFee: 75, txCount: 30)
-        ]
+    // Generate fee distribution data from mempool transaction
+    private func generateFeeDistributionData(from transaction: MempoolTransaction) -> [FeeRange] {
+        guard !transaction.feeRange.isEmpty else { return [] }
+        
+        // Sort fee range data
+        let sortedFees = transaction.feeRange.sorted()
+        
+        // Create fee ranges based on the actual fee data
+        // We'll create reasonable ranges that represent the distribution
+        let totalTxCount = transaction.nTx
+        var feeRanges: [FeeRange] = []
+        
+        if sortedFees.count >= 2 {
+            let minFee = sortedFees.first ?? 0
+            let maxFee = sortedFees.last ?? 1
+            
+            // Create 8-12 ranges based on the spread
+            let rangeCount = min(max(sortedFees.count, 8), 12)
+            let feeStep = (maxFee - minFee) / Double(rangeCount - 1)
+            
+            for i in 0..<rangeCount {
+                let rangeMinFee = minFee + (feeStep * Double(i))
+                let rangeMaxFee = i == rangeCount - 1 ? maxFee : rangeMinFee + feeStep
+                
+                // Estimate transaction count for this range
+                // Use a normal distribution curve - more transactions in middle ranges
+                let normalizedPosition = Double(i) / Double(rangeCount - 1)
+                let bellCurve = exp(-pow((normalizedPosition - 0.5) * 4, 2))
+                let estimatedTxCount = Int(Double(totalTxCount) * bellCurve * 0.3) + (totalTxCount / (rangeCount * 2))
+                
+                feeRanges.append(FeeRange(
+                    minFee: Int(rangeMinFee.rounded()),
+                    maxFee: Int(rangeMaxFee.rounded()),
+                    txCount: max(estimatedTxCount, 1)
+                ))
+            }
+        } else {
+            // Fallback: create a single range if we have limited data
+            let medianFee = Double(transaction.medianFee)
+            feeRanges.append(FeeRange(
+                minFee: Int(medianFee * 0.8),
+                maxFee: Int(medianFee * 1.2),
+                txCount: totalTxCount
+            ))
+        }
+        
+        return feeRanges
     }
 }
 

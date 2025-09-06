@@ -42,14 +42,14 @@ struct FeeDistributionChart: View {
                         AxisTick()
                             .foregroundStyle(Color.gray)
                         AxisValueLabel()
-                            .font(.caption2)
+                            .font(.system(size: 10))
                             .foregroundStyle(Color.gray)
                     }
                 }
                 .chartXAxis {
                     AxisMarks(position: .bottom) { _ in
                         AxisValueLabel()
-                            .font(.caption2)
+                            .font(.system(size: 10))
                             .foregroundStyle(Color.gray)
                     }
                 }
