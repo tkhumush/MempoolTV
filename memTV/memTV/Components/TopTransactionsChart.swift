@@ -20,7 +20,7 @@ struct TransactionData: Identifiable {
 // MARK: - Top Transactions Chart
 struct TopTransactionsChart: View {
     let transaction: MempoolTransaction
-    let chartHeight: CGFloat = 200
+    let chartHeight: CGFloat = 490
     
     private var topTransactions: [TransactionData] {
         generateMockTransactionData(for: transaction)
@@ -29,12 +29,6 @@ struct TopTransactionsChart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("Top 10 Largest Transactions")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                
                 Text("Largest transactions by BTC amount in this block")
                     .font(.caption)
                     .foregroundColor(.gray)
