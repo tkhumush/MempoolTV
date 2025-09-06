@@ -89,6 +89,14 @@ struct BlockDetailView: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
+                
+                // Top Transactions Chart (only for mempool transactions)
+                if case .mempool(let transaction) = selectedBlock {
+                    HStack {
+                        TopTransactionsChart(transaction: transaction)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             
