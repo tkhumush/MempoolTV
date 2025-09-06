@@ -37,8 +37,8 @@ class MempoolViewModel: ObservableObject {
     func startPolling() {
         loadMempoolData()
         
-        // Set up a timer to refresh every 30 seconds
-        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+        // Set up a timer to refresh every 60 seconds (Bitcoin blocks average ~10 minutes)
+        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.loadMempoolData()
             }
@@ -71,6 +71,9 @@ class MempoolViewModel: ObservableObject {
                 try await loadMempoolTransactions()
                 
                 isLoading = false
+                
+                // Log API usage statistics
+                mempoolService.logAPIUsage()
             } catch {
                 isLoading = false
                 errorMessage = "Failed to load data: \(error.localizedDescription)"

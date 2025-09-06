@@ -10,11 +10,63 @@ import Foundation
 class MempoolSpaceService: ObservableObject {
     private let baseURL = "https://mempool.space/api/v1"
     
+    // Rate limiting tracking
+    private var requestCount: Int = 0
+    private var lastResetTime = Date()
+    private var retryDelay: TimeInterval = 1.0
+    private let maxRetries = 3
+    
+    // Caching for block fees (hash -> (fee, timestamp))
+    private var blockFeeCache: [String: (fee: Int, timestamp: Date)] = [:]
+    private let cacheExpiration: TimeInterval = 300 // 5 minutes cache
+    
+    // MARK: - Rate Limiting Helper
+    
+    private func makeRequest(to url: URL, retryCount: Int = 0) async throws -> Data {
+        // Reset request counter every minute
+        let now = Date()
+        if now.timeIntervalSince(lastResetTime) > 60 {
+            requestCount = 0
+            lastResetTime = now
+            retryDelay = 1.0 // Reset retry delay
+        }
+        
+        requestCount += 1
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            
+            // Check for rate limiting
+            if let httpResponse = response as? HTTPURLResponse {
+                if httpResponse.statusCode == 429 {
+                    // Rate limited - implement exponential backoff
+                    if retryCount < maxRetries {
+                        print("Rate limited. Retrying in \(retryDelay) seconds...")
+                        try await Task.sleep(nanoseconds: UInt64(retryDelay * 1_000_000_000))
+                        retryDelay *= 2.0 // Exponential backoff
+                        return try await makeRequest(to: url, retryCount: retryCount + 1)
+                    } else {
+                        throw URLError(.badServerResponse)
+                    }
+                }
+                
+                // Reset retry delay on successful request
+                retryDelay = 1.0
+            }
+            
+            return data
+        } catch {
+            // Log API usage statistics
+            print("API Request failed. Current usage: \(requestCount) requests in last minute")
+            throw error
+        }
+    }
+    
     // MARK: - Public Methods
     
     func getRecentBlocks() async throws -> [Block] {
         let url = URL(string: "\(baseURL)/blocks")!
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let data = try await makeRequest(to: url)
         
         let blocksData = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] ?? []
         return blocksData.prefix(5).compactMap { blockData in
@@ -25,7 +77,7 @@ class MempoolSpaceService: ObservableObject {
     // Get fee recommendations (priority levels and confirmation estimates)
     func getFeeRecommendations() async throws -> (high: Int, medium: Int, low: Int, estimatedMinutes: Int) {
         let url = URL(string: "\(baseURL)/fees/recommended")!
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let data = try await makeRequest(to: url)
         
         let feeData = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
         
@@ -39,28 +91,49 @@ class MempoolSpaceService: ObservableObject {
         return (high: high, medium: medium, low: low, estimatedMinutes: estimatedMinutes)
     }
     
-    // Get average fee for a specific block by hash
+    // Get average fee for a specific block by hash (with caching)
     func getBlockAverageFee(blockHash: String) async throws -> Int? {
+        // Check cache first
+        if let cached = blockFeeCache[blockHash] {
+            let age = Date().timeIntervalSince(cached.timestamp)
+            if age < cacheExpiration {
+                print("Using cached block fee for \(blockHash.prefix(8))")
+                return cached.fee
+            } else {
+                // Remove expired cache entry
+                blockFeeCache.removeValue(forKey: blockHash)
+            }
+        }
+        
         let url = URL(string: "\(baseURL)/block/\(blockHash)")!
         
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let data = try await makeRequest(to: url)
             let blockData = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+            
+            var fee: Int?
             
             // Calculate average fee from block data
             if let extras = blockData["extras"] as? [String: Any],
                let medianFeeRate = extras["medianFeeRate"] as? Double {
-                return Int(medianFeeRate)
+                fee = Int(medianFeeRate)
             }
             
             // Fallback: estimate based on total fees and transaction count
-            if let totalFees = blockData["totalFees"] as? Int,
+            if fee == nil,
+               let totalFees = blockData["totalFees"] as? Int,
                let txCount = blockData["tx_count"] as? Int,
                txCount > 0 {
-                return totalFees / txCount / 250 // Approximate sat/vB
+                fee = totalFees / txCount / 250 // Approximate sat/vB
             }
             
-            return nil
+            // Cache the result if we got one
+            if let validFee = fee {
+                blockFeeCache[blockHash] = (fee: validFee, timestamp: Date())
+                print("Cached block fee for \(blockHash.prefix(8)): \(validFee) sat/vB")
+            }
+            
+            return fee
         } catch {
             // Return nil if block data cannot be fetched
             return nil
@@ -70,7 +143,7 @@ class MempoolSpaceService: ObservableObject {
     // Get recent mempool blocks with median fee information
     func getRecentMempoolTransactions() async throws -> [MempoolTransaction] {
         let url = URL(string: "\(baseURL)/fees/mempool-blocks")!
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let data = try await makeRequest(to: url)
         
         let mempoolBlocks = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] ?? []
         let timestamp = Date().timeIntervalSince1970
@@ -132,6 +205,21 @@ class MempoolSpaceService: ObservableObject {
         }
         
         return transactions
+    }
+    
+    // MARK: - Monitoring
+    
+    func getAPIUsageStats() -> (requestsPerMinute: Int, cacheHits: Int, totalRequests: Int) {
+        let cacheHits = blockFeeCache.count
+        return (requestsPerMinute: requestCount, cacheHits: cacheHits, totalRequests: requestCount)
+    }
+    
+    func logAPIUsage() {
+        let stats = getAPIUsageStats()
+        print("📊 API Usage Stats:")
+        print("   • Requests this minute: \(stats.requestsPerMinute)")
+        print("   • Cached block fees: \(stats.cacheHits)")
+        print("   • Cache hit rate: ~\(stats.cacheHits > 0 ? Int((Double(stats.cacheHits) / Double(stats.totalRequests + stats.cacheHits)) * 100) : 0)%")
     }
 }
 
