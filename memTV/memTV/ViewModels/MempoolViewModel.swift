@@ -14,6 +14,13 @@ enum SelectedBlockType {
     case mempool(MempoolTransaction) // Full transaction data
 }
 
+// MARK: - Selection Persistence
+enum PersistentSelection: Equatable {
+    case confirmedBlock(hash: String)
+    case mempoolBlock(position: Int)
+    case none
+}
+
 @MainActor
 class MempoolViewModel: ObservableObject {
     @Published var confirmedBlocks: [Block] = []
@@ -21,6 +28,9 @@ class MempoolViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var selectedBlock: SelectedBlockType?
+    
+    // Selection persistence
+    private var persistentSelection: PersistentSelection = .none
     
     // Fee data
     @Published var feeRecommendations: (high: Int, medium: Int, low: Int, estimatedMinutes: Int) = (45, 30, 15, 30)
@@ -72,6 +82,9 @@ class MempoolViewModel: ObservableObject {
                 
                 isLoading = false
                 
+                // Restore selection after data refresh
+                restoreSelection()
+                
                 // Log API usage statistics
                 mempoolService.logAPIUsage()
             } catch {
@@ -117,10 +130,46 @@ class MempoolViewModel: ObservableObject {
     // MARK: - Selection Methods
     func selectBlock(_ blockType: SelectedBlockType) {
         selectedBlock = blockType
+        
+        // Update persistent selection
+        switch blockType {
+        case .confirmed(let block):
+            persistentSelection = .confirmedBlock(hash: block.hash)
+        case .mempool(let transaction):
+            persistentSelection = .mempoolBlock(position: transaction.position)
+        }
     }
     
     func clearSelection() {
         selectedBlock = nil
+        persistentSelection = .none
+    }
+    
+    // MARK: - Selection Persistence
+    private func restoreSelection() {
+        switch persistentSelection {
+        case .confirmedBlock(let hash):
+            // Find the confirmed block with matching hash
+            if let block = confirmedBlocks.first(where: { $0.hash == hash }) {
+                selectedBlock = .confirmed(block)
+            } else {
+                // Block no longer exists, clear selection
+                clearSelection()
+            }
+            
+        case .mempoolBlock(let position):
+            // Find the mempool transaction with matching position
+            if let transaction = mempoolTransactions.first(where: { $0.position == position }) {
+                selectedBlock = .mempool(transaction)
+            } else {
+                // Position no longer exists, clear selection
+                clearSelection()
+            }
+            
+        case .none:
+            // No selection to restore
+            break
+        }
     }
     
     deinit {
