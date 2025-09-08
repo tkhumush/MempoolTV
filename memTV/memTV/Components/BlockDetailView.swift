@@ -170,52 +170,46 @@ struct BlockDetailView: View {
         }
     }
     
-    // Generate fee distribution data from mempool transaction
+    // Generate fee distribution data from mempool transaction using REAL API data
     private func generateFeeDistributionData(from transaction: MempoolTransaction) -> [FeeRange] {
-        guard !transaction.feeRange.isEmpty else { return [] }
-        
-        // Sort fee range data
-        let sortedFees = transaction.feeRange.sorted()
-        
-        // Create fee ranges based on the actual fee data
-        // We'll create reasonable ranges that represent the distribution
-        let totalTxCount = transaction.nTx
-        var feeRanges: [FeeRange] = []
-        
-        if sortedFees.count >= 2 {
-            let minFee = sortedFees.first ?? 0
-            let maxFee = sortedFees.last ?? 1
-            
-            // Create 8-12 ranges based on the spread
-            let rangeCount = min(max(sortedFees.count, 8), 12)
-            let feeStep = (maxFee - minFee) / Double(rangeCount - 1)
-            
-            for i in 0..<rangeCount {
-                let rangeMinFee = minFee + (feeStep * Double(i))
-                let rangeMaxFee = i == rangeCount - 1 ? maxFee : rangeMinFee + feeStep
-                
-                // Estimate transaction count for this range
-                // Use a normal distribution curve - more transactions in middle ranges
-                let normalizedPosition = Double(i) / Double(rangeCount - 1)
-                let bellCurve = exp(-pow((normalizedPosition - 0.5) * 4, 2))
-                let estimatedTxCount = Int(Double(totalTxCount) * bellCurve * 0.3) + (totalTxCount / (rangeCount * 2))
-                
-                feeRanges.append(FeeRange(
-                    minFee: Int(rangeMinFee.rounded()),
-                    maxFee: Int(rangeMaxFee.rounded()),
-                    txCount: max(estimatedTxCount, 1)
-                ))
-            }
-        } else {
-            // Fallback: create a single range if we have limited data
+        guard !transaction.feeRange.isEmpty else { 
+            print("⚠️ No feeRange data available, using median fallback")
             let medianFee = Double(transaction.medianFee)
-            feeRanges.append(FeeRange(
+            return [FeeRange(
                 minFee: Int(medianFee * 0.8),
                 maxFee: Int(medianFee * 1.2),
-                txCount: totalTxCount
+                txCount: transaction.nTx
+            )]
+        }
+        
+        // Print the raw data for debugging
+        print("🔍 Raw feeRange from API: \(transaction.feeRange)")
+        print("📊 Raw feeRange count: \(transaction.feeRange.count)")
+        
+        // Sort the fee range data
+        let sortedFees = transaction.feeRange.sorted()
+        print("📈 Sorted feeRange: \(sortedFees)")
+        
+        // Create simple percentile-to-fee mapping
+        var feeRanges: [FeeRange] = []
+        
+        // Map each fee in sortedFees to its corresponding percentile
+        for (index, feeRate) in sortedFees.enumerated() {
+            // Calculate percentile (0 to 100)
+            let percentile = Double(index) / Double(sortedFees.count - 1) * 100.0
+            
+            // Print the mapping for debugging
+            print("📍 Percentile \(String(format: "%.1f", percentile)): \(feeRate) sat/vB")
+            
+            // Store as simple fee range - use the fee rate directly
+            feeRanges.append(FeeRange(
+                minFee: Int(feeRate * 1000), // Preserve precision with millisats
+                maxFee: Int(feeRate * 1000), // Same value for point
+                txCount: 1 // Simplified - each point gets weight 1
             ))
         }
         
+        print("✅ Generated \(feeRanges.count) fee ranges for chart")
         return feeRanges
     }
 }
