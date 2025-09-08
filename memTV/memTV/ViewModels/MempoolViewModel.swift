@@ -32,6 +32,9 @@ class MempoolViewModel: ObservableObject {
     // Selection persistence
     private var persistentSelection: PersistentSelection = .none
     
+    // Block confirmation tracking
+    private var lastKnownBlockHeight: Int?
+    
     // Fee data
     @Published var feeRecommendations: (high: Int, medium: Int, low: Int, estimatedMinutes: Int) = (45, 30, 15, 30)
     @Published var blockAverageFees: [String: Int] = [:] // blockHash -> averageFee
@@ -98,6 +101,23 @@ class MempoolViewModel: ObservableObject {
     // Load the last 10 confirmed blocks
     private func loadConfirmedBlocks() async throws {
         let blocks = try await mempoolService.getRecentBlocks()
+        
+        // Check for new block confirmation
+        if let latestBlock = blocks.first {
+            let currentBlockHeight = latestBlock.height
+            
+            if let previousHeight = lastKnownBlockHeight {
+                if currentBlockHeight > previousHeight {
+                    print("🎉 Block Confirmed! New block height: \(currentBlockHeight) (was \(previousHeight))")
+                }
+            } else {
+                // First time loading, just store the height
+                print("📊 Initial block height: \(currentBlockHeight)")
+            }
+            
+            lastKnownBlockHeight = currentBlockHeight
+        }
+        
         self.confirmedBlocks = blocks
     }
     

@@ -40,7 +40,7 @@ struct BlockView: View {
             // Triangle pointer when selected
             if isSelected {
                 Triangle()
-                    .fill(Color.white)
+                    .fill(Color.gray)
                     .frame(width: 40, height: 20)
                     .offset(y: 1)
             } else {
@@ -60,7 +60,7 @@ struct BlockView: View {
                                 VStack(spacing: 1) {
                                     Text("Block")
                                         .font(.system(size: 20))
-                                        .foregroundColor(.black)
+                                        .foregroundColor(.white)
                                         .opacity(0.7)
                                     
                                     Text("\(blockNumber)")
@@ -117,12 +117,6 @@ struct BlockView: View {
                     }
                 )
                 .cornerRadius(8)
-            
-            // Status indicator
-            Text(isConfirmed ? "Confirmed" : "Mempool")
-                .font(.caption2)
-                .foregroundColor(isConfirmed ? .yellow : .purple)
-                .opacity(0.9)
         }
         .padding(8)
         .animation(.easeInOut(duration: 0.2), value: isSelected)
@@ -132,9 +126,9 @@ struct BlockView: View {
     
     private var blockColor: Color {
         if isSelected {
-            return isConfirmed ? Color.yellow.opacity(0.9) : Color.purple.opacity(0.9)
+            return isConfirmed ? Color.orange.opacity(0.9) : Color.gray.opacity(0.9)
         }
-        return isConfirmed ? Color.yellow : Color.purple
+        return isConfirmed ? Color.orange : Color.gray
     }
 }
 
