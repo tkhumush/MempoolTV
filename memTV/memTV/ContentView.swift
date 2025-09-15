@@ -14,7 +14,7 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             // Custom blue background (#3399CC)
-            Color(red: 28/255, green: 28/255, blue: 28/255)
+            Color(red: 51/255, green: 153/255, blue: 204/255)
                 .edgesIgnoringSafeArea(.all)
             
             VStack(spacing: 0) {
@@ -27,12 +27,16 @@ struct ContentView: View {
                         Image("AppIcon")
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 120, height: 120)
+                            .frame(width: 180, height: 180)
                             .cornerRadius(12)
                     }
                     .buttonStyle(.appleTV)
-                    
+
                     Spacer()
+
+                    // Bitcoin price in top right corner
+                    BitcoinPriceView()
+                        .padding(.trailing, 20)
                 }
                 .padding(.horizontal, 1)
                 .padding(.top, 5)

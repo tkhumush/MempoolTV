@@ -86,25 +86,25 @@ struct BlockView: View {
                                 VStack(spacing: 2) {
                                     Text("Median")
                                         .font(.system(size: 16))
-                                        .foregroundColor(.black)
+                                        .foregroundColor(.white)
                                         .opacity(0.7)
                                     
                                     if let medianFee = fees.medianFee {
                                         Text("\(medianFee)")
                                             .font(.system(size: 30))
                                             .fontWeight(.bold)
-                                            .foregroundColor(.black)
+                                            .foregroundColor(.white)
                                         
                                         Text("sat/vB")
                                             .font(.system(size: 14))
-                                            .foregroundColor(.black)
+                                            .foregroundColor(.white)
                                             .opacity(0.6)
                                     }
                                     
                                     Text("~\(fees.estimatedMinutes)min")
                                         .font(.system(size: 18))
                                         .fontWeight(.semibold)
-                                        .foregroundColor(.black)
+                                        .foregroundColor(.white)
                                         .padding(.top, 4)
                                 }
                             }
@@ -126,9 +126,9 @@ struct BlockView: View {
     
     private var blockColor: Color {
         if isSelected {
-            return isConfirmed ? Color.orange.opacity(0.9) : Color.gray.opacity(0.9)
+            return isConfirmed ? Color.orange.opacity(0.9) : Color.black.opacity(0.9)
         }
-        return isConfirmed ? Color.orange : Color.gray
+        return isConfirmed ? Color.orange : Color.black.opacity(0.7)
     }
 }
 
