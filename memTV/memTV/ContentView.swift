@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var viewModel = MempoolViewModel()
+    @State private var showingDevelopersView = false
     
     var body: some View {
         ZStack {
@@ -19,12 +20,17 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 // Header with logo
                 HStack {
-                    // App icon logo
-                    Image("AppIcon")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 120, height: 120)
-                        .cornerRadius(12)
+                    // App icon logo - now a button
+                    Button {
+                        showingDevelopersView = true
+                    } label: {
+                        Image("AppIcon")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 120, height: 120)
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.appleTV)
                     
                     Spacer()
                 }
@@ -135,6 +141,9 @@ struct ContentView: View {
             .onAppear {
                 viewModel.startPolling()
             }
+        }
+        .sheet(isPresented: $showingDevelopersView) {
+            DevelopersView()
         }
     }
     
