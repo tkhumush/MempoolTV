@@ -131,7 +131,7 @@ struct ContentView: View {
                                 Spacer()
                                 Text("Select a block to view details")
                                     .font(.title2)
-                                    .foregroundColor(.gray)
+                                    .foregroundColor(.black)
                                     .multilineTextAlignment(.center)
                                 Spacer()
                             }
