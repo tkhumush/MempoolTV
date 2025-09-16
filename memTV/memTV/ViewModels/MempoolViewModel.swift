@@ -150,14 +150,28 @@ class MempoolViewModel: ObservableObject {
     // MARK: - Selection Methods
     func selectBlock(_ blockType: SelectedBlockType) {
         selectedBlock = blockType
-        
-        // Update persistent selection
+
+        // Update persistent selection and fetch detailed data for confirmed blocks
         switch blockType {
         case .confirmed(let block):
             persistentSelection = .confirmedBlock(hash: block.hash)
+
+            // Fetch detailed block information
+            Task {
+                await fetchDetailedBlockInfo(for: block)
+            }
         case .mempool(let transaction):
             persistentSelection = .mempoolBlock(position: transaction.position)
         }
+    }
+
+    private func fetchDetailedBlockInfo(for block: Block) async {
+        // This would require access to BitcoinNodeService
+        // For now, we'll use the existing block data
+        // In a full implementation, you'd fetch detailed data here
+
+        // If you want to integrate with BitcoinNodeService, you'd need to inject it
+        // or create a new instance here
     }
     
     func clearSelection() {

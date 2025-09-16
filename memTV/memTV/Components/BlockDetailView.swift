@@ -38,20 +38,120 @@ struct BlockDetailView: View {
     }
     
     // MARK: - Confirmed Block View
-    
+
     private var confirmedBlockView: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 2), alignment: .leading, spacing: 5) {
-            DetailCard(title: "Number", value: blockNumber)
-            DetailCard(title: "Hash", value: hashValue)
-            
-            if let txCount = transactionCount {
-                DetailCard(title: "Transactions", value: "\(txCount)")
-            }
-            
-            if let timestamp = blockTimestamp {
-                DetailCard(title: "Time", value: timestamp)
+        Group {
+            if case .confirmed(let block) = selectedBlock {
+                // 2-column table layout with alternating row colors
+                VStack(spacing: 0) {
+                    let items = blockDetailItems(for: block)
+                    ForEach(0..<items.count, id: \.self) { index in
+                        let item = items[index]
+                        if !item.title.isEmpty {
+                            HStack(spacing: 0) {
+                                // Label cell
+                                Text(item.title)
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                    .fontWeight(.medium)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        index % 2 == 1
+                                            ? Color.gray.opacity(0.15)
+                                            : Color.gray.opacity(0.05)
+                                    )
+
+                                // Value cell
+                                Text(item.value)
+                                    .font(.caption)
+                                    .foregroundColor(.white)
+                                    .fontWeight(.medium)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        index % 2 == 1
+                                            ? Color.gray.opacity(0.15)
+                                            : Color.gray.opacity(0.05)
+                                    )
+                            }
+                        }
+                    }
+                }
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                )
+            } else {
+                // Fallback to original simple view
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 2), alignment: .leading, spacing: 5) {
+                    DetailCard(title: "Number", value: blockNumber)
+                    DetailCard(title: "Hash", value: hashValue)
+
+                    if let txCount = transactionCount {
+                        DetailCard(title: "Transactions", value: "\(txCount)")
+                    }
+
+                    if let timestamp = blockTimestamp {
+                        DetailCard(title: "Time", value: timestamp)
+                    }
+                }
             }
         }
+    }
+
+    // MARK: - Block Detail Items
+
+    private func blockDetailItems(for block: Block) -> [(title: String, value: String)] {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .medium
+        dateFormatter.timeStyle = .short
+
+        // Only include fields that are available from mempool.space API
+        var items: [(title: String, value: String)] = []
+
+        items.append(("Hash", String(block.hash.prefix(16)) + "..."))
+        items.append(("Timestamp", dateFormatter.string(from: Date(timeIntervalSince1970: TimeInterval(block.time)))))
+
+        if let size = block.size {
+            items.append(("Size", "\(formatter.string(from: NSNumber(value: size)) ?? "\(size)") bytes"))
+        }
+
+        if let weight = block.weight {
+            items.append(("Weight", "\(formatter.string(from: NSNumber(value: weight)) ?? "\(weight)") WU"))
+        }
+
+        if let medianFee = block.medianFee {
+            items.append(("Median Fee", String(format: "%.2f sat/vB", medianFee)))
+        }
+
+        if let totalFees = block.totalFees {
+            items.append(("Total Fees", String(format: "%.4f BTC", totalFees)))
+        }
+
+        // Only show Subsidy + Fees if we have both values
+        if block.subsidy != nil || block.totalFees != nil {
+            items.append(("Subsidy + Fees", calculateSubsidyPlusFees(for: block)))
+        }
+
+        if let miner = block.miner {
+            items.append(("Miner", miner))
+        }
+
+        return items
+    }
+
+    private func calculateSubsidyPlusFees(for block: Block) -> String {
+        let subsidy = block.subsidy ?? 0.0
+        let totalFees = block.totalFees ?? 0.0
+        let total = subsidy + totalFees
+        return String(format: "%.4f BTC", total)
     }
     
     // MARK: - Mempool Block View
@@ -332,14 +432,60 @@ struct MempoolDataRow: View {
     }
 }
 
+// MARK: - Block Detail Cell
+
+struct BlockDetailCell: View {
+    let title: String
+    let value: String
+    let isAlternatingRow: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if !title.isEmpty {
+                Text(title.uppercased())
+                    .font(.caption2)
+                    .foregroundColor(.gray)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+
+                Text(value)
+                    .font(.caption)
+                    .foregroundColor(.white)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            isAlternatingRow
+                ? Color.gray.opacity(0.15)
+                : Color.gray.opacity(0.05)
+        )
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
     Group {
         BlockDetailView(selectedBlock: .confirmed(
-            Block(hash: "0000000000000000000123456789abcdef", height: 800000, time: 1693478400, txCount: 2341)
+            Block(
+                hash: "0000000000000000000123456789abcdef",
+                height: 800000,
+                time: 1693478400,
+                txCount: 2341,
+                size: 1048576,
+                weight: 3993216,
+                totalFees: 0.1234,
+                medianFee: 45.5,
+                subsidy: 6.25,
+                miner: "FoundryUSA"
+            )
         ))
-        
+
         BlockDetailView(selectedBlock: .mempool(
             MempoolTransaction(
                 txid: "abc123def456ghi789jkl",

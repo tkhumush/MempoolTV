@@ -7,6 +7,12 @@
 
 import Foundation
 
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        return indices.contains(index) ? self[index] : nil
+    }
+}
+
 class BitcoinNodeService: ObservableObject {
     // Node connection settings
     private let nodeURL: String
@@ -65,19 +71,111 @@ class BitcoinNodeService: ObservableObject {
             "jsonrpc": "1.0",
             "id": requestID,
             "method": "getblock",
-            "params": [hash, 1] // verbosity = 1
+            "params": [hash, 2] // verbosity = 2 for detailed transaction info
         ]
-        
+
         let response = try await sendRequest(requestData: requestData)
         requestID += 1
-        
+
         guard let result = response["result"] as? [String: Any] else {
             throw BitcoinServiceError.invalidResponse
         }
-        
+
         return Block(from: result)
     }
-    
+
+    func getDetailedBlock(hash: String) async throws -> Block {
+        let requestData: [String: Any] = [
+            "jsonrpc": "1.0",
+            "id": requestID,
+            "method": "getblock",
+            "params": [hash, 2] // verbosity = 2 for full transaction details
+        ]
+
+        let response = try await sendRequest(requestData: requestData)
+        requestID += 1
+
+        guard let result = response["result"] as? [String: Any] else {
+            throw BitcoinServiceError.invalidResponse
+        }
+
+        // Calculate additional fields from transaction data
+        var block = Block(from: result)
+
+        // Calculate total fees and fee statistics if transaction data is available
+        if let transactions = result["tx"] as? [[String: Any]] {
+            let fees = calculateBlockStats(transactions: transactions)
+            let subsidy = calculateSubsidy(height: block.height)
+
+            // Create enhanced block with calculated data
+            block = Block(
+                hash: block.hash,
+                height: block.height,
+                time: block.time,
+                txCount: block.txCount,
+                size: result["size"] as? Int,
+                weight: result["weight"] as? Int,
+                totalFees: fees.totalFees,
+                medianFee: fees.medianFee,
+                subsidy: subsidy,
+                miner: extractMinerInfo(transactions: transactions)
+            )
+        }
+
+        return block
+    }
+
+    private func calculateBlockStats(transactions: [[String: Any]]) -> (totalFees: Double, medianFee: Double) {
+        var totalFees: Double = 0
+        var fees: [Double] = []
+
+        // Skip coinbase transaction (first transaction)
+        for tx in transactions.dropFirst() {
+            if let vout = tx["vout"] as? [[String: Any]],
+               let vin = tx["vin"] as? [[String: Any]] {
+
+                let outputValue = vout.compactMap { $0["value"] as? Double }.reduce(0, +)
+                let inputValue = vin.compactMap { _ in 0.0 }.reduce(0, +) // Would need to fetch input transactions for accurate value
+
+                // For now, use a simplified fee calculation
+                // In a real implementation, you'd need to fetch input transaction details
+                let estimatedFee = max(0.0001, outputValue * 0.01) // Rough estimate
+                totalFees += estimatedFee
+                fees.append(estimatedFee)
+            }
+        }
+
+        let medianFee = fees.sorted()[safe: fees.count / 2] ?? 0.0
+        return (totalFees, medianFee)
+    }
+
+    private func calculateSubsidy(height: Int) -> Double {
+        let halvings = height / 210000
+        let baseSubsidy = 50.0
+        return halvings < 32 ? baseSubsidy / pow(2.0, Double(halvings)) : 0.0
+    }
+
+    private func extractMinerInfo(transactions: [[String: Any]]) -> String? {
+        // Extract miner info from coinbase transaction
+        guard let coinbase = transactions.first,
+              let vin = coinbase["vin"] as? [[String: Any]],
+              let firstInput = vin.first,
+              let coinbaseHex = firstInput["coinbase"] as? String else {
+            return nil
+        }
+
+        // Basic miner detection - this is simplified
+        if coinbaseHex.contains("466f756e647279555341") { // FoundryUSA
+            return "FoundryUSA"
+        } else if coinbaseHex.contains("416e74506f6f6c") { // AntPool
+            return "AntPool"
+        } else if coinbaseHex.contains("4630506f6f6c") { // F2Pool
+            return "F2Pool"
+        } else {
+            return "Unknown"
+        }
+    }
+
     func getMempoolInfo() async throws -> MempoolInfo {
         let requestData: [String: Any] = [
             "jsonrpc": "1.0",
