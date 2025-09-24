@@ -34,6 +34,11 @@ struct ContentView: View {
 
                     Spacer()
 
+                    // Fees Priority Widget in center
+                    FeesPriorityWidget()
+
+                    Spacer()
+
                     // Bitcoin price in top right corner
                     BitcoinPriceView()
                         .padding(.trailing, 20)
