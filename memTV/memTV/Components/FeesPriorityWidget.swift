@@ -13,17 +13,8 @@ struct FeesPriorityWidget: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            // Priority segments pill
-            HStack(spacing: 0) {
-                prioritySegment("No Priority", isFirst: true, isLast: false)
-                prioritySegment("Low Priority", isFirst: false, isLast: false)
-                prioritySegment("Medium Priority", isFirst: false, isLast: false)
-                prioritySegment("High Priority", isFirst: false, isLast: true)
-            }
-            .frame(height: 30)
-
             // Fee displays
-            HStack(spacing: 20) {
+            HStack(spacing: 1) {
                 feeDisplay("Low", satPerVB: feeService.feeEstimate?.hourFee ?? 0)
                 feeDisplay("Median", satPerVB: feeService.feeEstimate?.halfHourFee ?? 0)
                 feeDisplay("High", satPerVB: feeService.feeEstimate?.fastestFee ?? 0)
@@ -35,23 +26,6 @@ struct FeesPriorityWidget: View {
                 await priceService.fetchPrice()
             }
         }
-    }
-
-    private func prioritySegment(_ text: String, isFirst: Bool, isLast: Bool) -> some View {
-        Text(text)
-            .font(.caption)
-            .foregroundColor(.white)
-            .padding(.vertical, 6)
-            .padding(.horizontal, 12)
-            .background(Color.gray.opacity(0.7))
-            .clipShape(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: isFirst ? 15 : 0,
-                    bottomLeadingRadius: isFirst ? 15 : 0,
-                    bottomTrailingRadius: isLast ? 15 : 0,
-                    topTrailingRadius: isLast ? 15 : 0
-                )
-            )
     }
 
     private func feeDisplay(_ priority: String, satPerVB: Int) -> some View {
@@ -89,10 +63,10 @@ struct FeesPriorityWidget: View {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = "USD"
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
+        formatter.minimumFractionDigits = 3
+        formatter.maximumFractionDigits = 3
 
-        return formatter.string(from: NSNumber(value: usdPerSatVB)) ?? "$0.00"
+        return formatter.string(from: NSNumber(value: usdPerSatVB)) ?? "$0.000"
     }
 }
 
