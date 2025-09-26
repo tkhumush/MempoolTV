@@ -9,12 +9,13 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var viewModel = MempoolViewModel()
+    @StateObject private var themeManager = ThemeManager()
     @State private var showingDevelopersView = false
     
     var body: some View {
         ZStack {
-            // Custom blue background (#3399CC)
-            Color(red: 51/255, green: 153/255, blue: 204/255)
+            // Theme-aware background
+            themeManager.contentViewBackgroundColor
                 .edgesIgnoringSafeArea(.all)
             
             VStack(spacing: 0) {
@@ -152,7 +153,7 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showingDevelopersView) {
-            DevelopersView()
+            DevelopersView(themeManager: themeManager)
         }
     }
     

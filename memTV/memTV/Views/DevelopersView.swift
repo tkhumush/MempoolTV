@@ -2,14 +2,19 @@ import SwiftUI
 
 struct DevelopersView: View {
     @StateObject private var nostrService = NostrService()
+    @ObservedObject var themeManager: ThemeManager
     @Environment(\.dismiss) private var dismiss
-    
+
     private let developers = [Developer.dev1, Developer.dev2]
+
+    init(themeManager: ThemeManager) {
+        self.themeManager = themeManager
+    }
     
     var body: some View {
         ZStack {
-            // Match app background
-            Color(red: 28/255, green: 28/255, blue: 28/255)
+            // Theme-aware background
+            themeManager.backgroundColor
                 .edgesIgnoringSafeArea(.all)
             
             VStack(spacing: 0) {
@@ -18,7 +23,7 @@ struct DevelopersView: View {
                     Button("Back") {
                         dismiss()
                     }
-                    .foregroundColor(.white)
+                    .foregroundColor(themeManager.primaryTextColor)
                     .font(.title2)
                     .buttonStyle(.appleTV)
                     
@@ -27,14 +32,19 @@ struct DevelopersView: View {
                     Text("Developers")
                         .font(.largeTitle)
                         .fontWeight(.bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(themeManager.primaryTextColor)
                     
                     Spacer()
-                    
-                    // Invisible button for balance
-                    Button("") { }
-                        .opacity(0)
-                        .font(.title2)
+
+                    // Theme toggle button
+                    Button {
+                        themeManager.toggleTheme()
+                    } label: {
+                        Image(systemName: themeManager.currentTheme == .dark ? "sun.max.fill" : "moon.fill")
+                            .font(.title2)
+                            .foregroundColor(themeManager.primaryTextColor)
+                    }
+                    .buttonStyle(.appleTV)
                 }
                 .padding(.horizontal, 40)
                 .padding(.vertical, 20)
@@ -42,18 +52,18 @@ struct DevelopersView: View {
                 // Error message
                 if let errorMessage = nostrService.errorMessage {
                     Text("Error: \(errorMessage)")
-                        .foregroundColor(.red)
+                        .foregroundColor(themeManager.errorColor)
                         .padding()
                 }
                 
                 // Connection status
                 HStack {
                     Circle()
-                        .fill(nostrService.isConnected ? .green : .red)
+                        .fill(nostrService.isConnected ? themeManager.successColor : themeManager.errorColor)
                         .frame(width: 12, height: 12)
-                    
+
                     Text(nostrService.isConnected ? "Connected to Nostr relay" : "Connecting...")
-                        .foregroundColor(.gray)
+                        .foregroundColor(themeManager.secondaryTextColor)
                         .font(.caption)
                 }
                 .padding(.bottom, 20)
@@ -63,13 +73,15 @@ struct DevelopersView: View {
                     // Left column - Dev1
                     DeveloperProfileCard(
                         developer: Developer.dev1,
-                        profile: nostrService.profiles[Developer.dev1.publicKeyHex]
+                        profile: nostrService.profiles[Developer.dev1.publicKeyHex],
+                        themeManager: themeManager
                     )
-                    
+
                     // Right column - Dev2
                     DeveloperProfileCard(
                         developer: Developer.dev2,
-                        profile: nostrService.profiles[Developer.dev2.publicKeyHex]
+                        profile: nostrService.profiles[Developer.dev2.publicKeyHex],
+                        themeManager: themeManager
                     )
                 }
                 .padding(.horizontal, 40)
@@ -94,6 +106,7 @@ struct DevelopersView: View {
 struct DeveloperProfileCard: View {
     let developer: Developer
     let profile: NostrProfile?
+    let themeManager: ThemeManager
     
     var body: some View {
         VStack(spacing: 20) {
@@ -104,11 +117,11 @@ struct DeveloperProfileCard: View {
                     .aspectRatio(contentMode: .fill)
             } placeholder: {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.gray.opacity(0.3))
+                    .fill(themeManager.secondaryTextColor.opacity(0.3))
                     .overlay {
                         Image(systemName: "person.circle.fill")
                             .font(.system(size: 60))
-                            .foregroundColor(.gray)
+                            .foregroundColor(themeManager.secondaryTextColor)
                     }
             }
             .frame(width: 200, height: 200)
@@ -118,14 +131,14 @@ struct DeveloperProfileCard: View {
             Text(profile?.displayableName ?? developer.name)
                 .font(.title2)
                 .fontWeight(.bold)
-                .foregroundColor(.white)
+                .foregroundColor(themeManager.primaryTextColor)
                 .multilineTextAlignment(.center)
             
             // About section
             ScrollView {
                 Text(profile?.displayableAbout ?? "Loading profile...")
                     .font(.body)
-                    .foregroundColor(.gray)
+                    .foregroundColor(themeManager.secondaryTextColor)
                     .multilineTextAlignment(.center)
                     .lineLimit(nil)
                     .padding(.horizontal, 10)
@@ -137,30 +150,30 @@ struct DeveloperProfileCard: View {
                 if let website = profile?.website, !website.isEmpty {
                     HStack {
                         Image(systemName: "globe")
-                            .foregroundColor(.blue)
+                            .foregroundColor(themeManager.accentColor)
                         Text(website)
                             .font(.caption)
-                            .foregroundColor(.blue)
+                            .foregroundColor(themeManager.accentColor)
                     }
                 }
-                
+
                 if let lud16 = profile?.lud16, !lud16.isEmpty {
                     HStack {
                         Image(systemName: "bolt.fill")
-                            .foregroundColor(.yellow)
+                            .foregroundColor(themeManager.warningColor)
                         Text(lud16)
                             .font(.caption)
-                            .foregroundColor(.yellow)
+                            .foregroundColor(themeManager.warningColor)
                     }
                 }
-                
+
                 if let nip05 = profile?.nip05, !nip05.isEmpty {
                     HStack {
                         Image(systemName: "checkmark.seal.fill")
-                            .foregroundColor(.green)
+                            .foregroundColor(themeManager.successColor)
                         Text(nip05)
                             .font(.caption)
-                            .foregroundColor(.green)
+                            .foregroundColor(themeManager.successColor)
                     }
                 }
             }
@@ -169,11 +182,11 @@ struct DeveloperProfileCard: View {
             VStack(spacing: 4) {
                 Text("Nostr Public Key")
                     .font(.caption2)
-                    .foregroundColor(.gray)
-                
+                    .foregroundColor(themeManager.secondaryTextColor)
+
                 Text(developer.npub)
                     .font(.caption2)
-                    .foregroundColor(.gray)
+                    .foregroundColor(themeManager.secondaryTextColor)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
             }
@@ -185,12 +198,12 @@ struct DeveloperProfileCard: View {
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.black.opacity(0.3))
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                .fill(themeManager.cardBackgroundColor)
+                .stroke(themeManager.cardBorderColor, lineWidth: 1)
         )
     }
 }
 
 #Preview {
-    DevelopersView()
+    DevelopersView(themeManager: ThemeManager())
 }
