@@ -67,4 +67,19 @@ class BitcoinPriceService: ObservableObject {
         }
         return "$\(price)"
     }
+
+    func formattedSatsPerDollar() -> String {
+        guard let price = currentPrice, price > 0 else { return "--,---" }
+
+        let satsPerDollar = 100_000_000 / price // 100 million sats in 1 BTC
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 0
+
+        if let formattedNumber = formatter.string(from: NSNumber(value: satsPerDollar)) {
+            return formattedNumber
+        }
+        return "\(satsPerDollar)"
+    }
 }
