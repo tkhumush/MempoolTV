@@ -176,7 +176,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 Need help? Have questions?
 
-- 📧 Email: support@mempoltv.app
+- 📧 Email: Email comming soon, report issues on github.
 - 🐛 Issues: [GitHub Issues](https://github.com/tkhumush/MempoolTV/issues)
 - 💬 Discussions: [GitHub Discussions](https://github.com/tkhumush/MempoolTV/discussions)
 
