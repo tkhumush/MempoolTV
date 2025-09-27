@@ -182,6 +182,10 @@ Need help? Have questions?
 
 ---
 
+## 🔒 Privacy Policy
+
+MempoolTV respects your privacy. We do not collect any personal data. See our [Privacy Policy](PRIVACY_POLICY.md) for full details.
+
 ## 📄 License
 
 MempoolTV is released under the MIT License. See [LICENSE](LICENSE) for details.
