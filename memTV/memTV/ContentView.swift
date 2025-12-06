@@ -15,12 +15,14 @@ struct ContentView: View {
     @StateObject private var viewModel = MempoolViewModel()
     @StateObject private var themeManager = ThemeManager()
     @State private var showingDevelopersView = false
-    
+    @State private var navigationPath = NavigationPath()
+
     var body: some View {
-        ZStack {
-            // Theme-aware background
-            themeManager.contentViewBackgroundColor
-                .edgesIgnoringSafeArea(.all)
+        NavigationStack(path: $navigationPath) {
+            ZStack {
+                // Theme-aware background
+                themeManager.contentViewBackgroundColor
+                    .edgesIgnoringSafeArea(.all)
             
             VStack(spacing: 0) {
                 // Header with logo
@@ -43,6 +45,23 @@ struct ContentView: View {
                     FeesPriorityWidget()
 
                     Spacer()
+
+                    // Network statistics button
+                    NavigationLink(value: "NetworkStatistics") {
+                        HStack(spacing: 8) {
+                            Image(systemName: "chart.bar.fill")
+                                .font(.title2)
+                            Text("Stats")
+                                .font(.headline)
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.2))
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(.appleTV)
+                    .padding(.trailing, 20)
 
                     // Bitcoin price in top right corner
                     BitcoinPriceView()
@@ -154,6 +173,13 @@ struct ContentView: View {
             }
             .onAppear {
                 viewModel.startPolling()
+            }
+            }
+            .navigationDestination(for: String.self) { destination in
+                if destination == "NetworkStatistics" {
+                    NetworkStatisticsView()
+                        .navigationBarBackButtonHidden(true)
+                }
             }
         }
         .sheet(isPresented: $showingDevelopersView) {
