@@ -15,9 +15,11 @@ struct FeesPriorityWidget: View {
         VStack(spacing: 8) {
             // Fee displays
             HStack(spacing: 1) {
-                feeDisplay("Low", satPerVB: feeService.feeEstimate?.hourFee ?? 0)
-                feeDisplay("Median", satPerVB: feeService.feeEstimate?.halfHourFee ?? 0)
-                feeDisplay("High", satPerVB: feeService.feeEstimate?.fastestFee ?? 0)
+                feeDisplay("No Rush", satPerVB: feeService.feeEstimate?.minimumFee ?? 0)
+                feeDisplay("Economy", satPerVB: feeService.feeEstimate?.economyFee ?? 0)
+                feeDisplay("Standard", satPerVB: feeService.feeEstimate?.hourFee ?? 0)
+                feeDisplay("Fast", satPerVB: feeService.feeEstimate?.halfHourFee ?? 0)
+                feeDisplay("Fastest", satPerVB: feeService.feeEstimate?.fastestFee ?? 0)
             }
         }
         .onAppear {
@@ -28,7 +30,7 @@ struct FeesPriorityWidget: View {
         }
     }
 
-    private func feeDisplay(_ priority: String, satPerVB: Int) -> some View {
+    private func feeDisplay(_ priority: String, satPerVB: Double) -> some View {
         VStack(spacing: 4) {
             Text(priority)
                 .font(.caption2)
@@ -39,7 +41,7 @@ struct FeesPriorityWidget: View {
                 .frame(height: 1)
 
             VStack(spacing: 2) {
-                Text("\(satPerVB) sat/vB")
+                Text(String(format: "%.1f sat/vB", satPerVB))
                     .font(.caption2)
                     .foregroundColor(.white)
 
@@ -50,7 +52,7 @@ struct FeesPriorityWidget: View {
         }
     }
 
-    private func formatDollarValue(satPerVB: Int) -> String {
+    private func formatDollarValue(satPerVB: Double) -> String {
         guard let btcPrice = priceService.currentPrice, btcPrice > 0 else {
             return "$0.00"
         }

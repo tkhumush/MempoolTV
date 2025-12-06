@@ -8,11 +8,11 @@
 import Foundation
 
 struct FeeEstimate: Codable {
-    let fastestFee: Int
-    let halfHourFee: Int
-    let hourFee: Int
-    let economyFee: Int
-    let minimumFee: Int
+    let fastestFee: Double
+    let halfHourFee: Double
+    let hourFee: Double
+    let economyFee: Double
+    let minimumFee: Double
 }
 
 class MempoolFeeService: ObservableObject {
@@ -20,7 +20,7 @@ class MempoolFeeService: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
-    private let feeURL = "https://mempool.space/api/v1/fees/recommended"
+    private let feeURL = "https://mempool.space/api/v1/fees/precise"
 
     func fetchFeeEstimates() async {
         await MainActor.run {
