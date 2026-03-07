@@ -118,8 +118,6 @@ struct FeeDistributionChart: View {
         let maxFee = percentileData.map { $0.feeRate }.max() ?? 1.0
         let minFee = percentileData.map { $0.feeRate }.min() ?? 0.1
         
-        print("📊 Y-axis scaling - Min fee: \(minFee), Max fee: \(maxFee)")
-        
         // Simple logarithmic scale - always include key points
         var values = [0.1, 1.0, 10.0, 100.0]
         
@@ -141,9 +139,7 @@ struct FeeDistributionChart: View {
             values.append(5.0)
         }
         
-        let sortedValues = values.sorted()
-        print("📈 Y-axis values: \(sortedValues)")
-        return sortedValues
+        return values.sorted()
     }
     
     private var yAxisDomain: ClosedRange<Double> {
@@ -198,12 +194,7 @@ struct FeeDistributionChart: View {
     
     // Generate percentile data from fee range data - SIMPLIFIED APPROACH
     private func generatePercentileData(from feeRanges: [FeeRange]) -> [PercentilePoint] {
-        guard !feeRanges.isEmpty else { 
-            print("⚠️ No feeRanges provided to chart")
-            return [] 
-        }
-        
-        print("📊 Chart received \(feeRanges.count) fee ranges")
+        guard !feeRanges.isEmpty else { return [] }
         
         // Sort by fee rate (stored as millisats)
         let sortedRanges = feeRanges.sorted { $0.minFee < $1.minFee }
@@ -220,35 +211,17 @@ struct FeeDistributionChart: View {
             // Convert millisats back to sat/vB
             let feeRate = Double(range.minFee) / 1000.0
             
-            // Print mapping for debugging (every 10th percentile to avoid spam)
-            if percentile % 10 == 0 {
-                print("📈 Chart mapping - Percentile \(percentile): \(feeRate) sat/vB")
-            }
-            
             percentilePoints.append(PercentilePoint(
                 percentile: Double(percentile),
                 feeRate: feeRate
             ))
         }
         
-        print("✅ Chart generated \(percentilePoints.count) percentile points")
         return percentilePoints
     }
 }
 
 // MARK: - Data Models
-
-struct FeeRange {
-    let minFee: Int      // Minimum fee in sat/vB
-    let maxFee: Int      // Maximum fee in sat/vB
-    let txCount: Int     // Number of transactions in this range
-    
-    init(minFee: Int, maxFee: Int, txCount: Int) {
-        self.minFee = minFee
-        self.maxFee = maxFee
-        self.txCount = txCount
-    }
-}
 
 struct PercentilePoint {
     let percentile: Double  // 10th, 20th, 30th, ... 100th percentile
