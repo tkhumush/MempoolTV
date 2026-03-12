@@ -8,8 +8,7 @@
 
 ---
 
-[![App Store](https://img.shields.io/badge/App_Store-Coming_Soon-blue?style=for-the-badge&logo=apple)]([https://apps.apple.com](https://apps.apple.com/us/app/mempooltv/id6751822510))
-[![Platform](https://img.shields.io/badge/Platform-Apple_TV-black?style=for-the-badge&logo=apple)](https://www.apple.com/apple-tv-4k/)
+[![Platform](https://img.shields.io/badge/Platform-Apple_TV-black?style=for-the-badge&logo=apple)]([https://www.apple.com/apple-tv-4k/](https://apps.apple.com/us/app/mempooltv/id6751822510))
 [![Swift](https://img.shields.io/badge/Swift-5.0-orange?style=for-the-badge&logo=swift)](https://swift.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
