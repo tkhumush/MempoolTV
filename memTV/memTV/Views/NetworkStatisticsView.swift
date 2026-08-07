@@ -2,24 +2,23 @@
 //  NetworkStatisticsView.swift
 //  memTV
 //
-//  Created by Taymur Khumush on 12/5/25.
+//  Network statistics dashboard with a unified ViewModel.
 //
 
 import SwiftUI
 
 struct NetworkStatisticsView: View {
-    @StateObject private var themeManager = ThemeManager()
+    @EnvironmentObject private var themeManager: ThemeManager
+    @EnvironmentObject private var viewModel: NetworkStatsViewModel
 
     var body: some View {
         ZStack {
-            // Theme-aware background
             themeManager.contentViewBackgroundColor
                 .edgesIgnoringSafeArea(.all)
 
             VStack(spacing: 0) {
                 // Header with logo - matching main screen
                 HStack {
-                    // App icon logo
                     Image("AppIcon")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -41,14 +40,12 @@ struct NetworkStatisticsView: View {
 
                 // Layout: VStack with difficulty widget, then HStack with two charts
                 VStack(spacing: 20) {
-                    // Top row - Difficulty Adjustment (spans full width)
-                    DifficultyAdjustmentWidget()
+                    DifficultyAdjustmentWidget(data: viewModel.difficultyData)
 
-                    // Bottom row - Two charts side by side
                     HStack(spacing: 20) {
-                        MiningPoolsChartView()
+                        MiningPoolsChartView(data: viewModel.poolsData)
 
-                        HashrateChartView()
+                        HashrateChartView(data: viewModel.hashrateData)
                     }
                 }
                 .padding(.horizontal, 40)
@@ -61,5 +58,24 @@ struct NetworkStatisticsView: View {
 }
 
 #Preview {
-    NetworkStatisticsView()
+    let viewModel = NetworkStatsViewModel()
+    viewModel.hashrateState = .loaded(HashrateResponse(
+        hashrates: [],
+        currentHashrate: 500_000_000_000_000_000_000,
+        currentDifficulty: 83_000_000_000_000
+    ))
+    viewModel.poolsState = .loaded(MiningPoolsResponse(
+        pools: [
+            MiningPool(poolId: 1, name: "FoundryUSA", link: "", blockCount: 120, rank: 1, emptyBlocks: 0, slug: "", avgMatchRate: nil, avgFeeDelta: nil, poolUniqueId: 1),
+            MiningPool(poolId: 2, name: "AntPool", link: "", blockCount: 80, rank: 2, emptyBlocks: 0, slug: "", avgMatchRate: nil, avgFeeDelta: nil, poolUniqueId: 2)
+        ],
+        blockCount: 1000,
+        lastEstimatedHashrate: 500_000_000_000_000_000_000,
+        lastEstimatedHashrate3d: nil,
+        lastEstimatedHashrate1w: nil
+    ))
+
+    return NetworkStatisticsView()
+        .environmentObject(ThemeManager())
+        .environmentObject(viewModel)
 }

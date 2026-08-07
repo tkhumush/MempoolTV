@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
-memTV is an Apple TV app built in SwiftUI that connects to a local Bitcoin node via JSON-RPC to display confirmed blocks and mempool transactions in real-time.
+memTV is an Apple TV app built in SwiftUI that connects to a local Bitcoin node via JSON-RPC and to mempool.space REST APIs to display confirmed blocks, mempool transactions, network statistics, and Nostr developer profiles in real-time.
 
 ## Build and Development Commands
 
@@ -26,40 +26,75 @@ open memTV/memTV.xcodeproj
 ## Architecture Overview
 
 ### Core Components
-- **BitcoinNodeService** (`Services/BitcoinNodeService.swift`): Handles all Bitcoin node communication via JSON-RPC
-- **MempoolViewModel** (`ViewModels/MempoolViewModel.swift`): Main UI state management with 30-second polling
-- **ContentView** (`ContentView.swift`): Primary UI with black background, yellow confirmed blocks, purple mempool blocks
+- **NetworkClient** (`Services/NetworkClient.swift`): Injectable network abstraction used by all services
+- **BitcoinNodeService** (`Services/BitcoinNodeService.swift`): Bitcoin Core JSON-RPC client using Codable models
+- **MempoolSpaceService** (`Services/MempoolSpaceService.swift`): Mempool.space REST client using Codable models
+- **MinerDetector** (`Services/MinerDetector.swift`): Expanded coinbase-tag miner detection
+- **MempoolViewModel** (`ViewModels/MempoolViewModel.swift`): Main UI state with cancellable async polling
+- **NetworkStatsViewModel** (`ViewModels/NetworkStatsViewModel.swift`): Shared state for network statistics widgets
+- **TopTransactionsViewModel** (`ViewModels/TopTransactionsViewModel.swift`): Real per-transaction data loader
+- **LoadableState** (`ViewModels/LoadableState.swift`): Unified loading/error/data enum
+- **ContentView** (`ContentView.swift`): Primary UI with black/yellow confirmed blocks and purple mempool blocks
 - **BlockView** (`Components/BlockView.swift`): Reusable block visualization component
+- **ThemeManager** (`ViewModels/ThemeManager.swift`): Shared theme state via environmentObject
 
 ### Data Flow
-1. `MempoolViewModel` polls `BitcoinNodeService` every 30 seconds
-2. Service fetches last 10 confirmed blocks and up to 20 mempool transactions
-3. UI updates automatically via `@Published` properties
-4. Error handling displays connection issues to user
+1. `memTVApp` creates a single `ThemeManager` shared via `environmentObject`
+2. `ContentView` creates `MempoolViewModel` and `NetworkStatsViewModel`, injects them into child views
+3. `MempoolViewModel` uses a single cancellable `Task` loop with 60-second polling
+4. Services return plain data; `@Published` state lives in ViewModels
+5. Error handling is per-section (`LoadableState`) instead of a single global error
 
 ### Configuration
-Bitcoin node connection configured in `MempoolViewModel` initialization:
+Bitcoin node credentials are no longer hardcoded. The app reads them from `RPCCredentialStore` (Keychain). Use the static helper to configure:
 ```swift
-BitcoinNodeService(
+try? RPCCredentialStore.shared.save(config: BitcoinRPCConfig(
     nodeURL: "http://localhost:8332",
-    rpcUser: "rpcuser", 
+    rpcUser: "rpcuser",
     rpcPassword: "rpcpassword"
-)
+))
 ```
+If no credentials are saved, `ContentView` shows an onboarding placeholder (future UI).
 
 ### Key Files Structure
 ```
 memTV/memTV/
-├── memTVApp.swift           # App entry point
-├── ContentView.swift        # Main UI view
+├── memTVApp.swift                     # App entry point
+├── ContentView.swift                  # Main UI view
+├── Constants.swift                    # Polling interval, dimensions, Bitcoin constants
+├── Extensions.swift                   # Array[safe:] helper
+├── Styles.swift                       # Apple TV button style
 ├── Services/
-│   └── BitcoinNodeService.swift  # Bitcoin RPC client
+│   ├── NetworkClient.swift            # NetworkClient protocol + URLSessionNetworkClient
+│   ├── BitcoinNodeService.swift       # JSON-RPC client (Codable)
+│   ├── MempoolSpaceService.swift      # Mempool.space REST client (Codable)
+│   ├── MinerDetector.swift            # Expanded pool detection
+│   └── RPCCredentialStore.swift       # Keychain-backed RPC credentials
 ├── ViewModels/
-│   └── MempoolViewModel.swift    # UI state management
+│   ├── MempoolViewModel.swift         # Main timeline state + polling
+│   ├── NetworkStatsViewModel.swift     # Stats widget state + refresh
+│   ├── TopTransactionsViewModel.swift # Real transaction loader
+│   ├── LoadableState.swift            # Loading/error/data enum
+│   └── ThemeManager.swift             # Shared theme
 ├── Components/
-│   └── BlockView.swift      # Block visualization
-└── Models/
-    └── BitcoinModels.swift  # Data models (Block, MempoolInfo)
+│   ├── BlockView.swift                # Block visualization
+│   ├── BlockTimelineView.swift        # Horizontal timeline
+│   ├── BlockDetailView.swift          # Detail container
+│   ├── ConfirmedBlockDetailView.swift # Confirmed block stats
+│   ├── MempoolBlockDetailView.swift   # Mempool block stats + top txs
+│   ├── TopTransactionsChart.swift     # Real top transaction bar chart
+│   ├── FeeDistributionChart.swift     # Fee distribution area chart
+│   ├── MiningPoolsChartView.swift     # Horizontal bar chart
+│   ├── HashrateChartView.swift        # Hashrate area chart
+│   ├── DifficultyAdjustmentWidget.swift
+│   ├── FeesPriorityWidget.swift
+│   └── BitcoinPriceView.swift
+├── Models/
+│   ├── BitcoinModels.swift            # Codable Block, MempoolTransaction, Transaction, etc.
+│   └── NostrModels.swift              # Nostr event/profile/message models
+└── Views/
+    ├── NetworkStatisticsView.swift
+    └── DevelopersView.swift
 ```
 
 ## Development Notes
@@ -68,6 +103,7 @@ memTV/memTV/
 - Fully synced Bitcoin node with RPC enabled
 - Default connection: http://localhost:8332 with basic auth
 - Required RPC methods: getblockcount, getblockhash, getblock, getmempoolinfo, getrawmempool
+- Credentials must be provided via `RPCCredentialStore`
 
 ### UI Design Constraints
 - Apple TV-specific layout with focus navigation
@@ -76,11 +112,13 @@ memTV/memTV/
 - Text-based graphics using colored rectangles with block numbers
 
 ### Error Handling
-- Network errors display in red text in UI
-- Service errors logged to console
-- Graceful fallback for missing data
+- Per-section `LoadableState.failed(String)` surfaced in the relevant widget/section
+- Network errors mapped to typed `NetworkError` and propagated as user-facing strings
+- Service errors no longer swallowed or defaulted to synthetic data
 
-### Performance Considerations  
-- Limited to 10 confirmed blocks and 20 mempool transactions for display
-- 30-second polling interval to avoid overwhelming node
-- Async/await pattern for network requests
+### Performance Considerations
+- 60-second polling interval
+- Single cancellable `Task` polling loop in `MempoolViewModel`
+- Network statistics refresh every 5 minutes
+- Async/await + `withTaskGroup` for parallel fee fetches
+- Stable SwiftUI identity using block hash and mempool position

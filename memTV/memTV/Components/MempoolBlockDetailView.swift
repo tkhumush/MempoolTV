@@ -2,13 +2,14 @@
 //  MempoolBlockDetailView.swift
 //  memTV
 //
-//  Created by Taymur Khumush on 8/31/25.
+//  Detail panel for a projected mempool block.
 //
 
 import SwiftUI
 
 struct MempoolBlockDetailView: View {
     let transaction: MempoolTransaction
+    let mempoolService: MempoolSpaceService
 
     var body: some View {
         HStack(alignment: .top, spacing: 50) {
@@ -50,7 +51,7 @@ struct MempoolBlockDetailView: View {
                     .foregroundColor(.white)
 
                 HStack {
-                    TopTransactionsChart(transaction: transaction)
+                    TopTransactionsChart(transaction: transaction, mempoolService: mempoolService)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }

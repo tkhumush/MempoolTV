@@ -12,10 +12,26 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var viewModel = MempoolViewModel()
-    @StateObject private var themeManager = ThemeManager()
+    @StateObject private var viewModel: MempoolViewModel
+    @StateObject private var networkStatsViewModel: NetworkStatsViewModel
+    @EnvironmentObject private var themeManager: ThemeManager
     @State private var showingDevelopersView = false
     @State private var navigationPath = NavigationPath()
+
+    @MainActor
+    init(viewModel: MempoolViewModel? = nil, networkStatsViewModel: NetworkStatsViewModel? = nil) {
+        if let viewModel = viewModel {
+            _viewModel = StateObject(wrappedValue: viewModel)
+        } else {
+            _viewModel = StateObject(wrappedValue: MempoolViewModel(mempoolService: MempoolSpaceService()))
+        }
+
+        if let networkStatsViewModel = networkStatsViewModel {
+            _networkStatsViewModel = StateObject(wrappedValue: networkStatsViewModel)
+        } else {
+            _networkStatsViewModel = StateObject(wrappedValue: NetworkStatsViewModel())
+        }
+    }
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -39,7 +55,7 @@ struct ContentView: View {
 
                         Spacer()
 
-                        FeesPriorityWidget()
+                        FeesPriorityWidget(feeEstimate: networkStatsViewModel.feeEstimate, btcPrice: networkStatsViewModel.priceResponse?.USD)
 
                         Spacer()
 
@@ -59,30 +75,34 @@ struct ContentView: View {
                         .buttonStyle(.appleTV)
                         .padding(.trailing, 20)
 
-                        BitcoinPriceView()
+                        BitcoinPriceView(priceResponse: networkStatsViewModel.priceResponse)
                             .padding(.trailing, 20)
                     }
                     .padding(.horizontal, 1)
                     .padding(.top, 5)
                     .padding(.bottom, 1)
 
-                    if viewModel.isLoading {
+                    if viewModel.isLoadingAny {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                             .scaleEffect(2)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
-                        if let errorMessage = viewModel.errorMessage {
-                            Text("Error: \(errorMessage)")
-                                .foregroundColor(.red)
-                                .padding()
+                        if let error = viewModel.confirmedBlocksState.errorMessage {
+                            errorBanner(error)
+                        }
+                        if let error = viewModel.mempoolTransactionsState.errorMessage {
+                            errorBanner(error)
+                        }
+                        if let error = viewModel.blockAverageFeesState.errorMessage {
+                            errorBanner(error)
                         }
 
                         VStack(spacing: 0) {
                             BlockTimelineView(viewModel: viewModel)
 
                             if let selectedBlock = viewModel.selectedBlock {
-                                BlockDetailView(selectedBlock: selectedBlock)
+                                BlockDetailView(selectedBlock: selectedBlock, mempoolService: viewModel.mempoolService)
                                     .padding(.top, 10)
                             } else {
                                 VStack {
@@ -102,21 +122,39 @@ struct ContentView: View {
                 }
                 .onAppear {
                     viewModel.startPolling()
+                    networkStatsViewModel.startAutoRefresh()
+                }
+                .onDisappear {
+                    viewModel.stopPolling()
+                    networkStatsViewModel.stopAutoRefresh()
                 }
             }
             .navigationDestination(for: String.self) { destination in
                 if destination == "NetworkStatistics" {
                     NetworkStatisticsView()
+                        .environmentObject(themeManager)
+                        .environmentObject(networkStatsViewModel)
                         .navigationBarBackButtonHidden(true)
                 }
             }
         }
         .sheet(isPresented: $showingDevelopersView) {
-            DevelopersView(themeManager: themeManager)
+            DevelopersView()
+                .environmentObject(themeManager)
         }
+    }
+
+    private func errorBanner(_ message: String) -> some View {
+        Text("Error: \(message)")
+            .foregroundColor(.red)
+            .padding(.horizontal)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.black.opacity(0.6))
     }
 }
 
 #Preview {
     ContentView()
+        .environmentObject(ThemeManager())
 }

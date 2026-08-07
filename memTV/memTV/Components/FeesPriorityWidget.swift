@@ -2,30 +2,23 @@
 //  FeesPriorityWidget.swift
 //  memTV
 //
-//  Created by Taymur Khumush on 9/23/25.
+//  Header fee-priority widget driven by a shared ViewModel.
 //
 
 import SwiftUI
 
 struct FeesPriorityWidget: View {
-    @StateObject private var feeService = MempoolFeeService()
-    @StateObject private var priceService = BitcoinPriceService()
+    let feeEstimate: FeeEstimate?
+    let btcPrice: Int?
 
     var body: some View {
         VStack(spacing: 8) {
-            // Fee displays
             HStack(spacing: 1) {
-                feeDisplay("No Rush", satPerVB: feeService.feeEstimate?.minimumFee ?? 0)
-                feeDisplay("Economy", satPerVB: feeService.feeEstimate?.economyFee ?? 0)
-                feeDisplay("Standard", satPerVB: feeService.feeEstimate?.hourFee ?? 0)
-                feeDisplay("Fast", satPerVB: feeService.feeEstimate?.halfHourFee ?? 0)
-                feeDisplay("Fastest", satPerVB: feeService.feeEstimate?.fastestFee ?? 0)
-            }
-        }
-        .onAppear {
-            Task {
-                await feeService.fetchFeeEstimates()
-                await priceService.fetchPrice()
+                feeDisplay("No Rush", satPerVB: feeEstimate?.minimumFee ?? 0)
+                feeDisplay("Economy", satPerVB: feeEstimate?.economyFee ?? 0)
+                feeDisplay("Standard", satPerVB: feeEstimate?.hourFee ?? 0)
+                feeDisplay("Fast", satPerVB: feeEstimate?.halfHourFee ?? 0)
+                feeDisplay("Fastest", satPerVB: feeEstimate?.fastestFee ?? 0)
             }
         }
     }
@@ -53,12 +46,10 @@ struct FeesPriorityWidget: View {
     }
 
     private func formatDollarValue(satPerVB: Double) -> String {
-        guard let btcPrice = priceService.currentPrice, btcPrice > 0 else {
+        guard let btcPrice = btcPrice, btcPrice > 0 else {
             return "$0.00"
         }
 
-        // Convert sat/vB to USD
-        // 1 BTC = 100,000,000 sats
         let btcPerSat = Double(btcPrice) / 100_000_000.0
         let usdPerSatVB = Double(satPerVB) * btcPerSat
 
@@ -72,8 +63,10 @@ struct FeesPriorityWidget: View {
     }
 }
 
-
 #Preview {
-    FeesPriorityWidget()
-        .background(Color(red: 51/255, green: 153/255, blue: 204/255))
+    FeesPriorityWidget(
+        feeEstimate: FeeEstimate(fastestFee: 50, halfHourFee: 35, hourFee: 25, economyFee: 15, minimumFee: 5),
+        btcPrice: 65_000
+    )
+    .background(Color(red: 51/255, green: 153/255, blue: 204/255))
 }

@@ -2,7 +2,7 @@
 //  BlockTimelineView.swift
 //  memTV
 //
-//  Created by Taymur Khumush on 8/30/25.
+//  Horizontal scrollable timeline of pending and confirmed blocks.
 //
 
 import SwiftUI
@@ -14,16 +14,14 @@ struct BlockTimelineView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 20) {
                 // Mempool blocks (pending/future)
-                ForEach(Array(viewModel.mempoolTransactions.sorted { $0.position < $1.position }.enumerated()).prefix(Constants.blockDisplayCount), id: \.element.txid) { _, transaction in
-                    let displayNumber = transaction.txid.prefix(8).hashValue % 100000
-                    let mempoolBlockCount = viewModel.mempoolTransactions.count
-                    let estimatedTime = (mempoolBlockCount - transaction.position) * Constants.blockDurationMinutes
+                ForEach(viewModel.mempoolTransactions) { transaction in
+                    let estimatedTime = (viewModel.mempoolTransactions.count - transaction.position) * Constants.blockDurationMinutes
 
                     Button {
                         viewModel.selectBlock(.mempool(transaction))
                     } label: {
                         BlockView(
-                            blockNumber: displayNumber,
+                            blockNumber: transaction.position,
                             isConfirmed: false,
                             feeInfo: FeeInfo(
                                 estimatedMinutes: estimatedTime,
@@ -33,6 +31,7 @@ struct BlockTimelineView: View {
                         )
                     }
                     .buttonStyle(.appleTV)
+                    .accessibilityLabel("Mempool block \(transaction.displayLabel), median fee \(transaction.medianFee) satoshis per virtual byte, estimated confirmation in \(estimatedTime) minutes")
                 }
 
                 // Separator
@@ -42,7 +41,7 @@ struct BlockTimelineView: View {
                     .padding(.horizontal, 10)
 
                 // Confirmed blocks
-                ForEach(viewModel.confirmedBlocks, id: \.hash) { block in
+                ForEach(viewModel.confirmedBlocks) { block in
                     Button {
                         viewModel.selectBlock(.confirmed(block))
                     } label: {
@@ -56,6 +55,7 @@ struct BlockTimelineView: View {
                         )
                     }
                     .buttonStyle(.appleTV)
+                    .accessibilityLabel("Confirmed block \(block.height), mined by \(block.miner ?? "unknown pool")")
                 }
             }
             .padding(.horizontal, 40)
@@ -73,7 +73,7 @@ struct BlockTimelineView: View {
 
     private func isSelected(_ transaction: MempoolTransaction) -> Bool {
         if case .mempool(let selected) = viewModel.selectedBlock {
-            return selected.txid == transaction.txid
+            return selected.position == transaction.position
         }
         return false
     }

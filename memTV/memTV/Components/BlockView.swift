@@ -2,7 +2,7 @@
 //  BlockView.swift
 //  memTV
 //
-//  Created by Taymur Khumush on 8/30/25.
+//  Reusable block visualization component.
 //
 
 import SwiftUI
@@ -107,8 +107,6 @@ struct BlockView: View {
         .padding(8)
         .animation(.easeInOut(duration: 0.2), value: isSelected)
     }
-
-    // MARK: - Computed Properties
 
     private var blockColor: Color {
         if isSelected {

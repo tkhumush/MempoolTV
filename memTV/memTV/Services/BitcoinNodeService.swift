@@ -2,208 +2,174 @@
 //  BitcoinNodeService.swift
 //  memTV
 //
-//  Created by Taymur Khumush on 8/30/25.
+//  Bitcoin Core JSON-RPC client using Codable models and an injectable NetworkClient.
 //
 
 import Foundation
 
-class BitcoinNodeService {
-    private let nodeURL: String
-    private let rpcUser: String
-    private let rpcPassword: String
+struct RPCError: Codable, Error {
+    let code: Int
+    let message: String
+}
 
-    init(nodeURL: String = "http://localhost:8332", rpcUser: String = "rpcuser", rpcPassword: String = "rpcpassword") {
-        self.nodeURL = nodeURL
-        self.rpcUser = rpcUser
-        self.rpcPassword = rpcPassword
-    }
+enum BitcoinServiceError: Error {
+    case invalidURL
+    case encodingError
+    case networkError(Error)
+    case httpError(Int)
+    case decodingError(Error)
+    case invalidResponse
+    case rpcError(RPCError)
+    case unauthorized
+    case missingCredentials
+}
 
-    // MARK: - Generic RPC
+private struct JSONRPCRequest<Params: Encodable>: Encodable {
+    let jsonrpc: String
+    let id: String
+    let method: String
+    let params: Params
+}
 
-    private func performRPC<T>(method: String, params: [Any] = [], transform: ([String: Any]) throws -> T) async throws -> T {
-        let requestData: [String: Any] = [
-            "jsonrpc": "1.0",
-            "id": UUID().uuidString,
-            "method": method,
-            "params": params
-        ]
+private struct JSONRPCResponse<Result: Decodable>: Decodable {
+    let result: Result?
+    let error: RPCError?
+    let id: String?
+}
 
-        let response = try await sendRequest(requestData: requestData)
+final class BitcoinNodeService: @unchecked Sendable {
+    private let config: BitcoinRPCConfig
+    private let networkClient: NetworkClient
+    private let decoder = JSONDecoder()
+    private let encoder = JSONEncoder()
 
-        guard let result = response["result"] else {
-            throw BitcoinServiceError.invalidResponse
-        }
-
-        // For simple types, the result is directly the value; for dicts, it's a dict.
-        // We pass the full response so the transform can handle both cases.
-        return try transform(response)
+    init(config: BitcoinRPCConfig, networkClient: NetworkClient) {
+        self.config = config
+        self.networkClient = networkClient
     }
 
     // MARK: - Public Methods
 
     func getBlockCount() async throws -> Int {
-        try await performRPC(method: "getblockcount") { response in
-            guard let result = response["result"] as? Int else {
-                throw BitcoinServiceError.invalidResponse
-            }
-            return result
-        }
+        try await performRPC(method: "getblockcount", params: [Int]())
     }
 
     func getBlockHash(height: Int) async throws -> String {
-        try await performRPC(method: "getblockhash", params: [height]) { response in
-            guard let result = response["result"] as? String else {
-                throw BitcoinServiceError.invalidResponse
-            }
-            return result
-        }
+        try await performRPC(method: "getblockhash", params: [height])
     }
 
     func getBlock(hash: String) async throws -> Block {
-        try await performRPC(method: "getblock", params: [hash, 2]) { response in
-            guard let result = response["result"] as? [String: Any] else {
-                throw BitcoinServiceError.invalidResponse
-            }
-            return Block.fromBitcoinRPC(result)
-        }
+        let response: BitcoinRPCBlockResponse = try await performRPC(method: "getblock", params: [hash, 2])
+        return Block(from: response)
     }
 
     func getDetailedBlock(hash: String) async throws -> Block {
-        try await performRPC(method: "getblock", params: [hash, 2]) { response in
-            guard let result = response["result"] as? [String: Any] else {
-                throw BitcoinServiceError.invalidResponse
-            }
+        let response: BitcoinRPCBlockResponse = try await performRPC(method: "getblock", params: [hash, 2])
+        var block = Block(from: response)
 
-            var block = Block.fromBitcoinRPC(result)
-
-            if let transactions = result["tx"] as? [[String: Any]] {
-                let fees = self.calculateBlockStats(transactions: transactions)
-                block = Block(
-                    hash: block.hash,
-                    height: block.height,
-                    time: block.time,
-                    txCount: block.txCount,
-                    size: result["size"] as? Int,
-                    weight: result["weight"] as? Int,
-                    totalFees: fees.totalFees,
-                    medianFee: fees.medianFee,
-                    subsidy: Constants.subsidy(atHeight: block.height),
-                    miner: self.extractMinerInfo(transactions: transactions)
-                )
-            }
-
-            return block
+        if let miner = MinerDetector.minerName(from: response.tx) {
+            block = Block(
+                hash: block.hash,
+                height: block.height,
+                time: block.time,
+                txCount: block.txCount,
+                size: block.size,
+                weight: block.weight,
+                totalFees: block.totalFees,
+                medianFee: block.medianFee,
+                subsidy: block.subsidy,
+                miner: miner
+            )
         }
+
+        return block
     }
 
     func getMempoolInfo() async throws -> MempoolInfo {
-        try await performRPC(method: "getmempoolinfo") { response in
-            guard let result = response["result"] as? [String: Any] else {
-                throw BitcoinServiceError.invalidResponse
-            }
-            return MempoolInfo(from: result)
-        }
+        try await performRPC(method: "getmempoolinfo", params: [Int]())
     }
 
     func getRawMempool() async throws -> [String] {
-        try await performRPC(method: "getrawmempool", params: [false]) { response in
-            guard let result = response["result"] as? [String] else {
-                throw BitcoinServiceError.invalidResponse
-            }
-            return result
-        }
+        try await performRPC(method: "getrawmempool", params: [false])
     }
 
-    // MARK: - Private Helpers
+    // MARK: - Generic RPC
 
-    private func calculateBlockStats(transactions: [[String: Any]]) -> (totalFees: Double, medianFee: Double) {
-        var totalFees: Double = 0
-        var fees: [Double] = []
-
-        for tx in transactions.dropFirst() {
-            if let vout = tx["vout"] as? [[String: Any]] {
-                let outputValue = vout.compactMap { $0["value"] as? Double }.reduce(0, +)
-                let estimatedFee = max(0.0001, outputValue * 0.01)
-                totalFees += estimatedFee
-                fees.append(estimatedFee)
-            }
-        }
-
-        let medianFee = fees.sorted()[safe: fees.count / 2] ?? 0.0
-        return (totalFees, medianFee)
-    }
-
-    private func extractMinerInfo(transactions: [[String: Any]]) -> String? {
-        guard let coinbase = transactions.first,
-              let vin = coinbase["vin"] as? [[String: Any]],
-              let firstInput = vin.first,
-              let coinbaseHex = firstInput["coinbase"] as? String else {
-            return nil
-        }
-
-        if coinbaseHex.contains("466f756e647279555341") {
-            return "FoundryUSA"
-        } else if coinbaseHex.contains("416e74506f6f6c") {
-            return "AntPool"
-        } else if coinbaseHex.contains("4630506f6f6c") {
-            return "F2Pool"
-        } else {
-            return "Unknown"
-        }
-    }
-
-    // MARK: - Network
-
-    private func sendRequest(requestData: [String: Any]) async throws -> [String: Any] {
-        guard let url = URL(string: nodeURL) else {
+    private func performRPC<Result: Decodable, Params: Encodable>(
+        method: String,
+        params: Params
+    ) async throws -> Result {
+        guard let url = URL(string: config.nodeURL) else {
             throw BitcoinServiceError.invalidURL
         }
+
+        let requestPayload = JSONRPCRequest(
+            jsonrpc: "1.0",
+            id: UUID().uuidString,
+            method: method,
+            params: params
+        )
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let loginString = "\(rpcUser):\(rpcPassword)"
+        let loginString = "\(config.rpcUser):\(config.rpcPassword)"
         guard let loginData = loginString.data(using: .utf8) else {
             throw BitcoinServiceError.encodingError
         }
         request.setValue("Basic \(loginData.base64EncodedString())", forHTTPHeaderField: "Authorization")
 
-        guard let httpBody = try? JSONSerialization.data(withJSONObject: requestData, options: []) else {
+        do {
+            request.httpBody = try encoder.encode(requestPayload)
+        } catch {
             throw BitcoinServiceError.encodingError
         }
-        request.httpBody = httpBody
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw BitcoinServiceError.networkError
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await networkClient.data(for: request)
+        } catch let error as NetworkError {
+            switch error {
+            case .httpError(401), .httpError(403):
+                throw BitcoinServiceError.unauthorized
+            case .httpError(let code):
+                throw BitcoinServiceError.httpError(code)
+            default:
+                throw BitcoinServiceError.networkError(error)
+            }
+        } catch {
+            throw BitcoinServiceError.networkError(error)
         }
 
-        guard httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw BitcoinServiceError.invalidResponse
+        }
+
+        switch httpResponse.statusCode {
+        case 401, 403:
+            throw BitcoinServiceError.unauthorized
+        case 200...299:
+            break
+        default:
             throw BitcoinServiceError.httpError(httpResponse.statusCode)
         }
 
-        guard let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
-            throw BitcoinServiceError.decodingError
+        let rpcResponse: JSONRPCResponse<Result>
+        do {
+            rpcResponse = try decoder.decode(JSONRPCResponse<Result>.self, from: data)
+        } catch {
+            throw BitcoinServiceError.decodingError(error)
         }
 
-        if let error = json["error"] as? [String: Any] {
-            throw BitcoinServiceError.rpcError(error)
+        if let rpcError = rpcResponse.error {
+            throw BitcoinServiceError.rpcError(rpcError)
         }
 
-        return json
+        guard let result = rpcResponse.result else {
+            throw BitcoinServiceError.invalidResponse
+        }
+
+        return result
     }
-}
-
-// MARK: - Error Definitions
-
-enum BitcoinServiceError: Error {
-    case invalidURL
-    case encodingError
-    case networkError
-    case httpError(Int)
-    case decodingError
-    case invalidResponse
-    case rpcError([String: Any])
 }

@@ -1,100 +1,104 @@
-import Foundation
-import Network
+//
+//  NostrService.swift
+//  memTV
+//
+//  Async/await WebSocket client for Nostr relay communication.
+//
 
-class NostrService: ObservableObject {
-    private var webSocketTask: URLSessionWebSocketTask?
-    private let relayURL = URL(string: "wss://relay.primal.net")!
-    private var urlSession: URLSession
-    
+import Foundation
+
+@MainActor
+final class NostrService: ObservableObject {
     @Published var isConnected = false
     @Published var profiles: [String: NostrProfile] = [:]
     @Published var errorMessage: String?
-    
-    private var subscriptions: [String: [String]] = [:] // subscriptionId -> [pubkeys]
-    
-    init() {
+
+    private let relayURLString: String
+    private var webSocketTask: URLSessionWebSocketTask?
+    private var listeningTask: Task<Void, Never>?
+    private var urlSession: URLSession
+
+    init(relayURL: String = "wss://relay.primal.net") {
+        self.relayURLString = relayURL
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 60
         self.urlSession = URLSession(configuration: config)
     }
-    
+
+    deinit {
+        disconnect()
+    }
+
     func connect() {
         guard webSocketTask == nil else { return }
-        
-        webSocketTask = urlSession.webSocketTask(with: relayURL)
-        webSocketTask?.resume()
-        
-        DispatchQueue.main.async {
-            self.isConnected = true
-            self.errorMessage = nil
+
+        guard let url = URL(string: relayURLString) else {
+            errorMessage = "Invalid relay URL"
+            return
         }
-        
-        startListening()
+
+        webSocketTask = urlSession.webSocketTask(with: url)
+        webSocketTask?.resume()
+        isConnected = true
+        errorMessage = nil
+
+        listeningTask = Task { [weak self] in
+            await self?.listen()
+        }
     }
-    
+
     func disconnect() {
-        guard webSocketTask != nil else { return }
-        
+        listeningTask?.cancel()
+        listeningTask = nil
         webSocketTask?.cancel(with: .normalClosure, reason: nil)
         webSocketTask = nil
-        
-        DispatchQueue.main.async {
-            self.isConnected = false
-            self.errorMessage = nil
-        }
+        isConnected = false
+        errorMessage = nil
     }
-    
-    func fetchProfiles(for developers: [Developer]) {
-        guard isConnected else {
+
+    func fetchProfiles(for developers: [Developer]) async {
+        if !isConnected {
             connect()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                self.fetchProfiles(for: developers)
-            }
-            return
+            try? await Task.sleep(nanoseconds: 500_000_000)
         }
-        
+
+        guard !Task.isCancelled else { return }
+
         let pubkeys = developers.compactMap { $0.publicKeyHex.isEmpty ? nil : $0.publicKeyHex }
-        
         guard !pubkeys.isEmpty else {
-            DispatchQueue.main.async {
-                self.errorMessage = "No valid public keys found"
-            }
+            errorMessage = "No valid public keys found"
             return
         }
-        
+
         let subscriptionId = NostrUtils.generateSubscriptionId()
-        subscriptions[subscriptionId] = pubkeys
-        
-        print("Fetching profiles for pubkeys: \(pubkeys)")
-        
-        // Try each author separately to avoid filter issues
+
         for (index, pubkey) in pubkeys.enumerated() {
-            let filterDict: [String: Any] = [
-                "kinds": [0],
-                "authors": [pubkey]
-            ]
-            
-            let authorSubscriptionId = "\(subscriptionId)_\(index)"
-            sendMessage(["REQ", authorSubscriptionId, filterDict])
+            guard !Task.isCancelled else { return }
+            let filter = NostrFilter(kinds: [0], authors: [pubkey])
+            let request = NostrMessage.req("\(subscriptionId)_\(index)", filter)
+            await send(request)
         }
     }
-    
-    private func startListening() {
-        webSocketTask?.receive { [weak self] result in
-            switch result {
-            case .success(let message):
-                self?.handleMessage(message)
-                self?.startListening() // Continue listening
-            case .failure(let error):
-                DispatchQueue.main.async {
-                    self?.errorMessage = "WebSocket error: \(error.localizedDescription)"
-                    self?.isConnected = false
-                }
+
+    private func listen() async {
+        defer {
+            isConnected = false
+        }
+
+        do {
+            while !Task.isCancelled {
+                guard let task = webSocketTask else { return }
+                let message = try await task.receive()
+                handleMessage(message)
+            }
+        } catch {
+            if !Task.isCancelled {
+                errorMessage = "WebSocket error: \(error.localizedDescription)"
             }
         }
     }
-    
+
     private func handleMessage(_ message: URLSessionWebSocketTask.Message) {
         switch message {
         case .string(let text):
@@ -107,104 +111,53 @@ class NostrService: ObservableObject {
             break
         }
     }
-    
+
     private func parseNostrMessage(_ text: String) {
         guard let data = text.data(using: .utf8),
-              let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [Any],
-              let messageType = jsonArray.first as? String else {
+              let message = try? JSONDecoder().decode(NostrMessage.self, from: data) else {
             return
         }
-        
-        switch messageType {
-        case "EVENT":
-            handleEventMessage(jsonArray)
-        case "EOSE":
-            handleEndOfStoredEvents(jsonArray)
-        case "NOTICE":
-            handleNotice(jsonArray)
+
+        switch message {
+        case .event(_, let event):
+            if event.kind == 0 {
+                parseProfileMetadata(event)
+            }
+        case .eose(let subscriptionId):
+            Task { await send(.close(subscriptionId)) }
+        case .notice(let notice):
+            errorMessage = "Relay notice: \(notice)"
         default:
             break
         }
     }
-    
-    private func handleEventMessage(_ jsonArray: [Any]) {
-        guard jsonArray.count >= 3,
-              let _ = jsonArray[1] as? String,
-              let eventDict = jsonArray[2] as? [String: Any],
-              let eventData = try? JSONSerialization.data(withJSONObject: eventDict),
-              let event = try? JSONDecoder().decode(NostrEvent.self, from: eventData) else {
-            return
-        }
-        
-        if event.kind == 0 { // metadata event
-            parseProfileMetadata(event)
-        }
-    }
-    
+
     private func parseProfileMetadata(_ event: NostrEvent) {
         guard let contentData = event.content.data(using: .utf8),
-              let metadata = try? JSONSerialization.jsonObject(with: contentData) as? [String: Any] else {
+              let profile = try? JSONDecoder().decode(NostrProfile.self, from: contentData) else {
             return
         }
-        
-        let profile = NostrProfile(
+
+        profiles[event.pubkey] = NostrProfile(
             id: event.pubkey,
-            name: metadata["name"] as? String,
-            displayName: metadata["display_name"] as? String,
-            about: metadata["about"] as? String,
-            picture: metadata["picture"] as? String,
-            website: metadata["website"] as? String,
-            lud16: metadata["lud16"] as? String,
-            nip05: metadata["nip05"] as? String
+            name: profile.name,
+            displayName: profile.displayName,
+            about: profile.about,
+            picture: profile.picture,
+            website: profile.website,
+            lud16: profile.lud16,
+            nip05: profile.nip05
         )
-        
-        DispatchQueue.main.async {
-            self.profiles[event.pubkey] = profile
-        }
     }
-    
-    private func handleEndOfStoredEvents(_ jsonArray: [Any]) {
-        guard let subscriptionId = jsonArray[1] as? String else { return }
-        
-        // Close the subscription
-        sendMessage(["CLOSE", subscriptionId])
-        subscriptions.removeValue(forKey: subscriptionId)
-    }
-    
-    private func handleNotice(_ jsonArray: [Any]) {
-        guard let notice = jsonArray[1] as? String else { return }
-        
-        DispatchQueue.main.async {
-            self.errorMessage = "Relay notice: \(notice)"
-        }
-    }
-    
-    private func sendMessage(_ message: [Any]) {
+
+    private func send(_ message: NostrMessage) async {
+        guard let task = webSocketTask else { return }
         do {
-            let data = try JSONSerialization.data(withJSONObject: message)
-            guard let text = String(data: data, encoding: .utf8) else {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Failed to encode message as UTF-8"
-                }
-                return
-            }
-            
-            let webSocketMessage = URLSessionWebSocketTask.Message.string(text)
-            webSocketTask?.send(webSocketMessage) { error in
-                if let error = error {
-                    DispatchQueue.main.async {
-                        self.errorMessage = "Failed to send message: \(error.localizedDescription)"
-                    }
-                }
-            }
+            let data = try JSONEncoder().encode(message)
+            guard let text = String(data: data, encoding: .utf8) else { return }
+            try await task.send(.string(text))
         } catch {
-            DispatchQueue.main.async {
-                self.errorMessage = "JSON serialization error: \(error.localizedDescription)"
-            }
+            errorMessage = "Failed to send message: \(error.localizedDescription)"
         }
-    }
-    
-    deinit {
-        disconnect()
     }
 }

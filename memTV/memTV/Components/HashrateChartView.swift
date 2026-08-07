@@ -2,32 +2,25 @@
 //  HashrateChartView.swift
 //  memTV
 //
-//  Created by Taymur Khumush on 12/5/25.
+//  90-day network hashrate area chart driven by shared data.
 //
 
 import SwiftUI
 import Charts
 
 struct HashrateChartView: View {
-    @StateObject private var service = HashrateService()
+    let data: HashrateResponse?
 
     var body: some View {
         VStack(spacing: 12) {
-            if service.isLoading {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    .scaleEffect(1.5)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let data = service.hashrateData {
+            if let data = data {
                 VStack(spacing: 12) {
-                    // Title
                     Text("Network Hashrate (90 Days)")
                         .font(.subheadline)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
 
-                    // Chart - plot last 90 data points
-                    Chart(data.hashrates.suffix(90)) { point in
+                    Chart(data.hashrates) { point in
                         LineMark(
                             x: .value("Date", Date(timeIntervalSince1970: TimeInterval(point.timestamp))),
                             y: .value("Hashrate", point.avgHashrate / 1_000_000_000_000_000_000)
@@ -67,10 +60,10 @@ struct HashrateChartView: View {
                                 .font(.caption2)
                         }
                     }
+                    .accessibilityLabel("Network hashrate over the last 90 days")
 
-                    // Current hashrate display - use last data point
                     if let lastPoint = data.hashrates.last {
-                        Text(service.formatHashrate(lastPoint.avgHashrate))
+                        Text(formatHashrate(lastPoint.avgHashrate))
                             .font(.title2)
                             .fontWeight(.bold)
                             .foregroundColor(.orange)
@@ -81,23 +74,31 @@ struct HashrateChartView: View {
                     }
                 }
                 .padding()
-            } else if let error = service.errorMessage {
-                Text("Error: \(error)")
-                    .foregroundColor(.red)
-                    .font(.caption)
+            } else {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    .scaleEffect(1.5)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .background(Color.black.opacity(0.3))
         .cornerRadius(12)
-        .onAppear {
-            Task {
-                await service.fetchHashrateData()
-            }
-        }
+    }
+
+    private func formatHashrate(_ hashrate: Double) -> String {
+        let exahash = hashrate / 1_000_000_000_000_000_000
+        return String(format: "%.2f EH/s", exahash)
     }
 }
 
 #Preview {
-    HashrateChartView()
-        .background(Color(red: 51/255, green: 153/255, blue: 204/255))
+    HashrateChartView(data: HashrateResponse(
+        hashrates: [
+            HashrateDataPoint(timestamp: 1_700_000_000, avgHashrate: 450_000_000_000_000_000_000),
+            HashrateDataPoint(timestamp: 1_700_086_400, avgHashrate: 500_000_000_000_000_000_000)
+        ],
+        currentHashrate: 500_000_000_000_000_000_000,
+        currentDifficulty: 83_000_000_000_000
+    ))
+    .background(Color(red: 51/255, green: 153/255, blue: 204/255))
 }

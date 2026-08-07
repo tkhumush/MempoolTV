@@ -1,3 +1,10 @@
+//
+//  NostrModels.swift
+//  memTV
+//
+//  Nostr profile, event, and wire-format message models.
+//
+
 import Foundation
 
 // MARK: - Nostr Profile Models
@@ -11,11 +18,16 @@ struct NostrProfile: Codable, Identifiable {
     let website: String?
     let lud16: String? // Lightning address
     let nip05: String? // NIP-05 identifier
-    
+
+    enum CodingKeys: String, CodingKey {
+        case name, about, picture, website, lud16, nip05
+        case displayName = "display_name"
+    }
+
     var displayableName: String {
         displayName ?? name ?? "Unknown"
     }
-    
+
     var displayableAbout: String {
         about ?? "No description available"
     }
@@ -31,7 +43,7 @@ struct NostrEvent: Codable {
     let tags: [[String]]
     let content: String
     let sig: String
-    
+
     enum CodingKeys: String, CodingKey {
         case id, pubkey, kind, tags, content, sig
         case createdAt = "created_at"
@@ -44,7 +56,7 @@ struct NostrFilter: Codable {
     let since: Int?
     let until: Int?
     let limit: Int?
-    
+
     init(kinds: [Int]? = nil, authors: [String]? = nil, since: Int? = nil, until: Int? = nil, limit: Int? = nil) {
         self.kinds = kinds
         self.authors = authors
@@ -62,15 +74,70 @@ enum NostrMessage: Codable {
     case event(String, NostrEvent)
     case eose(String)
     case notice(String)
-    
-    enum MessageType: String {
+
+    enum MessageType: String, CodingKey {
         case req = "REQ"
         case close = "CLOSE"
         case event = "EVENT"
         case eose = "EOSE"
         case notice = "NOTICE"
     }
+
+    init(from decoder: Decoder) throws {
+        var container = try decoder.unkeyedContainer()
+        let typeString = try container.decode(String.self)
+        guard let type = MessageType(rawValue: typeString) else {
+            throw DecodingError.dataCorruptedError(
+                at: container.codingPath,
+                debugDescription: "Unknown Nostr message type: \(typeString)"
+            )
+        }
+
+        switch type {
+        case .req:
+            let subscriptionId = try container.decode(String.self)
+            let filter = try container.decode(NostrFilter.self)
+            self = .req(subscriptionId, filter)
+        case .close:
+            let subscriptionId = try container.decode(String.self)
+            self = .close(subscriptionId)
+        case .event:
+            let subscriptionId = try container.decode(String.self)
+            let event = try container.decode(NostrEvent.self)
+            self = .event(subscriptionId, event)
+        case .eose:
+            let subscriptionId = try container.decode(String.self)
+            self = .eose(subscriptionId)
+        case .notice:
+            let notice = try container.decode(String.self)
+            self = .notice(notice)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.unkeyedContainer()
+        switch self {
+        case .req(let subscriptionId, let filter):
+            try container.encode(MessageType.req.rawValue)
+            try container.encode(subscriptionId)
+            try container.encode(filter)
+        case .close(let subscriptionId):
+            try container.encode(MessageType.close.rawValue)
+            try container.encode(subscriptionId)
+        case .event(let subscriptionId, let event):
+            try container.encode(MessageType.event.rawValue)
+            try container.encode(subscriptionId)
+            try container.encode(event)
+        case .eose(let subscriptionId):
+            try container.encode(MessageType.eose.rawValue)
+            try container.encode(subscriptionId)
+        case .notice(let notice):
+            try container.encode(MessageType.notice.rawValue)
+            try container.encode(notice)
+        }
+    }
 }
+
 
 // MARK: - Developer Configuration
 
@@ -78,19 +145,19 @@ struct Developer {
     let name: String
     let npub: String
     let publicKeyHex: String
-    
+
     init(name: String, npub: String, publicKeyHex: String) {
         self.name = name
         self.npub = npub
         self.publicKeyHex = publicKeyHex
     }
-    
+
     static let dev1 = Developer(
         name: "TKay",
         npub: "npub1nje4ghpkjsxe5thcd4gdt3agl2usxyxv3xxyx39ul3xgytl5009q87l02j",
         publicKeyHex: "9cb3545c36940d9a2ef86d50d5c7a8fab90310cc898c4344bcfc4c822ff47bca"
     )
-    
+
     static let dev2 = Developer(
         name: "Layer Zero Propaganda",
         npub: "npub18uw728dql82jfz5ka5w9xwm69wvdn7q2a0ypkg22k5rld3apwzjqqhnyjz",
@@ -101,31 +168,8 @@ struct Developer {
 // MARK: - Nostr Utilities
 
 struct NostrUtils {
-    static func npubToHex(_ npub: String) -> String? {
-        guard npub.hasPrefix("npub1") else { return nil }
-        
-        // Extract the bech32 part (remove npub1 prefix)
-        let bech32Part = String(npub.dropFirst(5))
-        
-        // Simplified bech32 decoder for Nostr keys
-        return simpleBech32Decode(bech32Part)
-    }
-    
-    private static func simpleBech32Decode(_ bech32: String) -> String? {
-        // Bech32 character set
-        let charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
-        
-        // Convert each character to its value
-        var values: [Int] = []
-        for char in bech32 {
-            guard let index = charset.firstIndex(of: char) else { return nil }
-            values.append(charset.distance(from: charset.startIndex, to: index))
-        }
-        
-        // For now, let's use the known correct conversions until we implement full bech32
-        // These are the actual hex values for your npubs
-        let fullNpub = "npub1" + bech32
-        switch fullNpub {
+    static func knownHex(forNpub npub: String) -> String? {
+        switch npub {
         case "npub1nje4ghpkjsxe5thcd4gdt3agl2usxyxv3xxyx39ul3xgytl5009q87l02j":
             return "966d1a851b8b139d5e3865da8dd70d845b31b0b2e7a8f2334f2fc206bf7f41a1"
         case "npub18uw728dql82jfz5ka5w9xwm69wvdn7q2a0ypkg22k5rld3apwzjqqhnyjz":
@@ -134,8 +178,8 @@ struct NostrUtils {
             return nil
         }
     }
-    
+
     static func generateSubscriptionId() -> String {
-        return UUID().uuidString.prefix(8).lowercased()
+        UUID().uuidString.prefix(8).lowercased()
     }
 }

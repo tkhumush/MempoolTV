@@ -2,13 +2,14 @@
 //  BlockDetailView.swift
 //  memTV
 //
-//  Created by Taymur Khumush on 8/31/25.
+//  Container that renders either a confirmed or mempool block detail panel.
 //
 
 import SwiftUI
 
 struct BlockDetailView: View {
     let selectedBlock: SelectedBlockType
+    let mempoolService: MempoolSpaceService
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
@@ -26,7 +27,7 @@ struct BlockDetailView: View {
             case .confirmed(let block):
                 ConfirmedBlockDetailView(block: block)
             case .mempool(let transaction):
-                MempoolBlockDetailView(transaction: transaction)
+                MempoolBlockDetailView(transaction: transaction, mempoolService: mempoolService)
             }
         }
         .padding(10)
@@ -139,36 +140,42 @@ struct MempoolDataRow: View {
 
 #Preview {
     Group {
-        BlockDetailView(selectedBlock: .confirmed(
-            Block(
-                hash: "0000000000000000000123456789abcdef",
-                height: 800000,
-                time: 1693478400,
-                txCount: 2341,
-                size: 1048576,
-                weight: 3993216,
-                totalFees: 0.1234,
-                medianFee: 45.5,
-                subsidy: 6.25,
-                miner: "FoundryUSA"
-            )
-        ))
+        BlockDetailView(
+            selectedBlock: .confirmed(
+                Block(
+                    hash: "0000000000000000000123456789abcdef",
+                    height: 800000,
+                    time: 1693478400,
+                    txCount: 2341,
+                    size: 1048576,
+                    weight: 3993216,
+                    totalFees: 0.1234,
+                    medianFee: 45.5,
+                    subsidy: 6.25,
+                    miner: "FoundryUSA"
+                )
+            ),
+            mempoolService: MempoolSpaceService()
+        )
 
-        BlockDetailView(selectedBlock: .mempool(
-            MempoolTransaction(
-                txid: "abc123def456ghi789jkl",
-                fee: 12500,
-                vsize: 250,
-                position: 0,
-                estimatedConfirmationTime: 10,
-                medianFee: 45,
-                blockSize: 1710000,
-                blockVSize: 999500,
-                nTx: 3752,
-                totalFees: 10500000,
-                feeRange: [0.29, 15.6, 32.1, 45.2, 67.8, 89.3, 153.2]
-            )
-        ))
+        BlockDetailView(
+            selectedBlock: .mempool(
+                MempoolTransaction(
+                    txid: "abc123def456ghi789jkl",
+                    fee: 12500,
+                    vsize: 250,
+                    position: 0,
+                    estimatedConfirmationTime: 10,
+                    medianFee: 45,
+                    blockSize: 1710000,
+                    blockVSize: 999500,
+                    nTx: 3752,
+                    totalFees: 10500000,
+                    feeRange: [0.29, 15.6, 32.1, 45.2, 67.8, 89.3, 153.2]
+                )
+            ),
+            mempoolService: MempoolSpaceService()
+        )
     }
     .background(Color.black)
 }

@@ -2,45 +2,36 @@
 //  DifficultyAdjustmentWidget.swift
 //  memTV
 //
-//  Created by Taymur Khumush on 12/5/25.
+//  Difficulty adjustment progress widget driven by shared data.
 //
 
 import SwiftUI
 
 struct DifficultyAdjustmentWidget: View {
-    @StateObject private var service = DifficultyAdjustmentService()
+    let data: DifficultyAdjustment?
 
     var body: some View {
         VStack(spacing: 16) {
-            if service.isLoading {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    .scaleEffect(1.5)
-            } else if let data = service.difficultyData {
+            if let data = data {
                 VStack(spacing: 12) {
-                    // Title
                     Text("Difficulty Adjustment")
                         .font(.headline)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
 
-                    // Progress bar
                     VStack(spacing: 8) {
                         GeometryReader { geometry in
                             ZStack(alignment: .leading) {
-                                // Background
                                 Rectangle()
                                     .fill(Color.white.opacity(0.2))
                                     .frame(height: 30)
                                     .cornerRadius(15)
 
-                                // Progress fill
                                 Rectangle()
                                     .fill(Color.orange)
                                     .frame(width: geometry.size.width * (data.progressPercent / 100), height: 30)
                                     .cornerRadius(15)
 
-                                // Percentage text
                                 Text("\(String(format: "%.1f", data.progressPercent))%")
                                     .font(.headline)
                                     .fontWeight(.bold)
@@ -51,7 +42,6 @@ struct DifficultyAdjustmentWidget: View {
                         .frame(height: 30)
                     }
 
-                    // Stats grid
                     HStack(spacing: 40) {
                         statItem(
                             title: "Estimated Change",
@@ -67,31 +57,26 @@ struct DifficultyAdjustmentWidget: View {
 
                         statItem(
                             title: "Time Remaining",
-                            value: service.formatTimeRemaining(data.remainingTime),
+                            value: formatTimeRemaining(data.remainingTime),
                             color: .white
                         )
 
                         statItem(
                             title: "Avg Block Time",
-                            value: service.formatAvgBlockTime(data.timeAvg),
+                            value: formatAvgBlockTime(data.timeAvg),
                             color: .white
                         )
                     }
                 }
                 .padding()
-            } else if let error = service.errorMessage {
-                Text("Error: \(error)")
-                    .foregroundColor(.red)
-                    .font(.caption)
+            } else {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    .scaleEffect(1.5)
             }
         }
         .background(Color.black.opacity(0.3))
         .cornerRadius(12)
-        .onAppear {
-            Task {
-                await service.fetchDifficultyAdjustment()
-            }
-        }
     }
 
     private func statItem(title: String, value: String, color: Color) -> some View {
@@ -106,9 +91,34 @@ struct DifficultyAdjustmentWidget: View {
                 .foregroundColor(color)
         }
     }
+
+    private func formatTimeRemaining(_ seconds: Int) -> String {
+        let correctedSeconds = Double(seconds) / 1000.0
+        let days = correctedSeconds / 86400.0
+        return String(format: "%.1fd", days)
+    }
+
+    private func formatAvgBlockTime(_ seconds: Double) -> String {
+        let correctedSeconds = seconds / 1000.0
+        let minutes = correctedSeconds / 60.0
+        return String(format: "%.1fm", minutes)
+    }
 }
 
 #Preview {
-    DifficultyAdjustmentWidget()
-        .background(Color(red: 51/255, green: 153/255, blue: 204/255))
+    DifficultyAdjustmentWidget(data: DifficultyAdjustment(
+        progressPercent: 45.5,
+        difficultyChange: 2.3,
+        estimatedRetargetDate: 1_700_000_000,
+        remainingBlocks: 1100,
+        remainingTime: 6_000_000,
+        previousRetarget: -1.2,
+        previousTime: 1_690_000_000,
+        nextRetargetHeight: 804_000,
+        timeAvg: 600_000,
+        adjustedTimeAvg: nil,
+        timeOffset: 0,
+        expectedBlocks: 1234
+    ))
+    .background(Color(red: 51/255, green: 153/255, blue: 204/255))
 }

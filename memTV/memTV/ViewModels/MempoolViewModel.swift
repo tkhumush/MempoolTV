@@ -2,87 +2,133 @@
 //  MempoolViewModel.swift
 //  memTV
 //
-//  Created by Taymur Khumush on 8/30/25.
+//  Main UI state management with cancellable async polling and per-section errors.
 //
 
 import Foundation
 import SwiftUI
 
 @MainActor
-class MempoolViewModel: ObservableObject {
-    @Published var confirmedBlocks: [Block] = []
-    @Published var mempoolTransactions: [MempoolTransaction] = []
-    @Published var isLoading = false
-    @Published var errorMessage: String?
+final class MempoolViewModel: ObservableObject {
+    @Published var confirmedBlocksState: LoadableState<[Block]> = .idle
+    @Published var mempoolTransactionsState: LoadableState<[MempoolTransaction]> = .idle
+    @Published var blockAverageFeesState: LoadableState<[String: Int]> = .idle
     @Published var selectedBlock: SelectedBlockType?
-    @Published var blockAverageFees: [String: Int] = [:]
+
+    var confirmedBlocks: [Block] { confirmedBlocksState.value ?? [] }
+    var mempoolTransactions: [MempoolTransaction] { mempoolTransactionsState.value ?? [] }
+    var blockAverageFees: [String: Int] { blockAverageFeesState.value ?? [:] }
+
+    var isLoadingAny: Bool {
+        confirmedBlocksState.isLoading || mempoolTransactionsState.isLoading || blockAverageFeesState.isLoading
+    }
+
+    var hasAnyError: Bool {
+        confirmedBlocksState.errorMessage != nil || mempoolTransactionsState.errorMessage != nil || blockAverageFeesState.errorMessage != nil
+    }
 
     private var persistentSelection: PersistentSelection = .none
-    private let mempoolService: MempoolSpaceService
-    private var timer: Timer?
+    let mempoolService: MempoolSpaceService
+    private var pollingTask: Task<Void, Never>?
 
-    init(mempoolService: MempoolSpaceService = MempoolSpaceService()) {
+    init(mempoolService: MempoolSpaceService) {
         self.mempoolService = mempoolService
     }
 
     func startPolling() {
-        loadMempoolData()
-
-        timer = Timer.scheduledTimer(withTimeInterval: Constants.pollingInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.loadMempoolData()
+        stopPolling()
+        pollingTask = Task {
+            await refresh()
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(Constants.pollingInterval * 1_000_000_000))
+                guard !Task.isCancelled else { break }
+                await refresh()
             }
         }
     }
 
     func stopPolling() {
-        timer?.invalidate()
-        timer = nil
+        pollingTask?.cancel()
+        pollingTask = nil
     }
 
-    func loadMempoolData() {
-        guard !isLoading else { return }
-        isLoading = true
-        errorMessage = nil
+    func refresh() async {
+        async let confirmedTask: () = loadConfirmedBlocks()
+        async let mempoolTask: () = loadMempoolTransactions()
 
-        Task {
-            do {
-                try await loadConfirmedBlocks()
-                try await loadBlockAverageFees()
-                try await loadMempoolTransactions()
+        await confirmedTask
+        await mempoolTask
 
-                isLoading = false
-                restoreSelection()
-            } catch {
-                isLoading = false
-                errorMessage = "Failed to load data: \(error.localizedDescription)"
-            }
+        if case .loaded = confirmedBlocksState {
+            await loadBlockAverageFees()
+        }
+
+        restoreSelection()
+    }
+
+    private func loadConfirmedBlocks() async {
+        confirmedBlocksState = .loading
+        do {
+            let blocks = try await mempoolService.getRecentBlocks()
+            confirmedBlocksState = .loaded(blocks)
+        } catch {
+            confirmedBlocksState = .failed("Failed to load confirmed blocks: \(error.localizedDescription)")
         }
     }
 
-    private func loadConfirmedBlocks() async throws {
-        let blocks = try await mempoolService.getRecentBlocks()
-        self.confirmedBlocks = blocks
+    private func loadMempoolTransactions() async {
+        mempoolTransactionsState = .loading
+        do {
+            let transactions = try await mempoolService.getRecentMempoolTransactions()
+            mempoolTransactionsState = .loaded(transactions)
+        } catch {
+            mempoolTransactionsState = .failed("Failed to load mempool: \(error.localizedDescription)")
+        }
     }
 
-    private func loadMempoolTransactions() async throws {
-        let transactions = try await mempoolService.getRecentMempoolTransactions()
-        self.mempoolTransactions = transactions
-    }
+    private func loadBlockAverageFees() async {
+        let blocks = confirmedBlocks
+        guard !blocks.isEmpty else {
+            blockAverageFeesState = .loaded([:])
+            return
+        }
 
-    private func loadBlockAverageFees() async throws {
+        blockAverageFeesState = .loading
         var averageFees: [String: Int] = [:]
+        var errors: [String] = []
 
-        for block in confirmedBlocks {
-            if let avgFee = try? await mempoolService.getBlockAverageFee(blockHash: block.hash) {
-                averageFees[block.hash] = avgFee
+        let service = mempoolService
+        await withTaskGroup(of: (hash: String, fee: Int?).self) { group in
+            for block in blocks {
+                let blockHash = block.hash
+                group.addTask {
+                    do {
+                        let fee = try await service.getBlockAverageFee(blockHash: blockHash)
+                        return (blockHash, fee)
+                    } catch {
+                        return (blockHash, nil)
+                    }
+                }
+            }
+
+            for await result in group {
+                if let fee = result.fee {
+                    averageFees[result.hash] = fee
+                } else {
+                    errors.append(result.hash)
+                }
             }
         }
 
-        self.blockAverageFees = averageFees
+        if averageFees.isEmpty, !errors.isEmpty {
+            blockAverageFeesState = .failed("Could not fetch average fees for any block.")
+        } else {
+            blockAverageFeesState = .loaded(averageFees)
+        }
     }
 
     // MARK: - Selection Methods
+
     func selectBlock(_ blockType: SelectedBlockType) {
         selectedBlock = blockType
 
@@ -99,7 +145,6 @@ class MempoolViewModel: ObservableObject {
         persistentSelection = .none
     }
 
-    // MARK: - Selection Persistence
     private func restoreSelection() {
         switch persistentSelection {
         case .confirmedBlock(let hash):
@@ -122,6 +167,6 @@ class MempoolViewModel: ObservableObject {
     }
 
     deinit {
-        timer?.invalidate()
+        stopPolling()
     }
 }
