@@ -1,160 +1,125 @@
-//
-//  ContentView.swift
-//  memTV
-//
-//  Created by Taymur Khumush on 8/30/25.
-//  Copyright © 2025 Taymur Khumush. All rights reserved.
-//
-//  This file is part of MempoolTV, licensed under the MIT License.
-//  See LICENSE file in the project root for full license information.
-//
-
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var viewModel: MempoolViewModel
-    @StateObject private var networkStatsViewModel: NetworkStatsViewModel
-    @EnvironmentObject private var themeManager: ThemeManager
-    @State private var showingDevelopersView = false
-    @State private var navigationPath = NavigationPath()
-
-    @MainActor
-    init(viewModel: MempoolViewModel? = nil, networkStatsViewModel: NetworkStatsViewModel? = nil) {
-        if let viewModel = viewModel {
-            _viewModel = StateObject(wrappedValue: viewModel)
-        } else {
-            _viewModel = StateObject(wrappedValue: MempoolViewModel(mempoolService: MempoolSpaceService()))
-        }
-
-        if let networkStatsViewModel = networkStatsViewModel {
-            _networkStatsViewModel = StateObject(wrappedValue: networkStatsViewModel)
-        } else {
-            _networkStatsViewModel = StateObject(wrappedValue: NetworkStatsViewModel())
-        }
-    }
+    @StateObject private var model = ObservatoryModel()
+    @Environment(\.scenePhase) private var phase
+    @Environment(\.accessibilityReduceMotion) private var reduced
+    @FocusState private var focused: String?
+    @State private var restoreFocus: String?
+    @State private var blockFrames: [String: CGRect] = [:]
 
     var body: some View {
-        NavigationStack(path: $navigationPath) {
-            ZStack {
-                themeManager.contentViewBackgroundColor
-                    .edgesIgnoringSafeArea(.all)
-
-                VStack(spacing: 0) {
-                    // Header
-                    HStack {
-                        Button {
-                            showingDevelopersView = true
-                        } label: {
-                            Image("AppIcon")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: Constants.appIconSize, height: Constants.appIconSize)
-                                .cornerRadius(12)
-                        }
-                        .buttonStyle(.appleTV)
-
-                        Spacer()
-
-                        FeesPriorityWidget(feeEstimate: networkStatsViewModel.feeEstimate, btcPrice: networkStatsViewModel.priceResponse?.USD)
-
-                        Spacer()
-
-                        NavigationLink(value: "NetworkStatistics") {
-                            HStack(spacing: 8) {
-                                Image(systemName: "chart.bar.fill")
-                                    .font(.title2)
-                                Text("Stats")
-                                    .font(.headline)
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
-                            .background(Color.white.opacity(0.2))
-                            .cornerRadius(8)
-                        }
-                        .buttonStyle(.appleTV)
-                        .padding(.trailing, 20)
-
-                        BitcoinPriceView(priceResponse: networkStatsViewModel.priceResponse)
-                            .padding(.trailing, 20)
-                    }
-                    .padding(.horizontal, 1)
-                    .padding(.top, 5)
-                    .padding(.bottom, 1)
-
-                    if viewModel.isLoadingAny {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(2)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        if let error = viewModel.confirmedBlocksState.errorMessage {
-                            errorBanner(error)
-                        }
-                        if let error = viewModel.mempoolTransactionsState.errorMessage {
-                            errorBanner(error)
-                        }
-                        if let error = viewModel.blockAverageFeesState.errorMessage {
-                            errorBanner(error)
-                        }
-
-                        VStack(spacing: 0) {
-                            BlockTimelineView(viewModel: viewModel)
-
-                            if let selectedBlock = viewModel.selectedBlock {
-                                BlockDetailView(selectedBlock: selectedBlock, mempoolService: viewModel.mempoolService)
-                                    .padding(.top, 10)
-                            } else {
-                                VStack {
-                                    Spacer()
-                                    Text("Select a block to view details")
-                                        .font(.title2)
-                                        .foregroundColor(.black)
-                                        .multilineTextAlignment(.center)
-                                    Spacer()
-                                }
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            }
-                        }
-                    }
-
-                    Spacer()
-                }
-                .onAppear {
-                    viewModel.startPolling()
-                    networkStatsViewModel.startAutoRefresh()
-                }
-                .onDisappear {
-                    viewModel.stopPolling()
-                    networkStatsViewModel.stopAutoRefresh()
-                }
-            }
-            .navigationDestination(for: String.self) { destination in
-                if destination == "NetworkStatistics" {
-                    NetworkStatisticsView()
-                        .environmentObject(themeManager)
-                        .environmentObject(networkStatsViewModel)
-                        .navigationBarBackButtonHidden(true)
-                }
-            }
+        GeometryReader { geometry in
+            let scale = min(geometry.size.width / 1920, geometry.size.height / 1080)
+            composition
+                .frame(width: 1920, height: 1080)
+                .scaleEffect(scale)
+                .frame(width: geometry.size.width, height: geometry.size.height)
         }
-        .sheet(isPresented: $showingDevelopersView) {
-            DevelopersView()
-                .environmentObject(themeManager)
+        .background(ObservatoryStyle.canvas)
+        .ignoresSafeArea()
+        .preferredColorScheme(.dark)
+        .background(RemoteInputObserver { model.input() })
+        .task { model.setActive(phase == .active); focused = model.screen.rawValue }
+        .onChange(of: phase) { _, value in model.setActive(value == .active) }
+        .onDisappear { model.setActive(false) }
+        .onChange(of: model.celebration?.id) { old, new in
+            if new != nil { restoreFocus = focused; focused = "skip" }
+            else if old != nil { focused = restoredFocus }
+        }
+        .onChange(of: model.dossier?.id) { old, new in
+            if new != nil { restoreFocus = focused }
+            else if old != nil { focused = restoredFocus }
+        }
+        .sheet(item: $model.dossier) { block in BlockDossier(block: block, api: model.api) }
+        .onExitCommand {
+            model.input()
+            if model.celebration != nil { model.dismissCelebration() }
+            else if model.dossier != nil { model.dossier = nil }
+            else { model.select(.overview); focused = ObservatoryScreen.overview.rawValue }
+        }
+        .task {
+            while !Task.isCancelled {
+                do { try await Task.sleep(nanoseconds: 1_000_000_000) } catch { return }
+                model.tick(now: Date())
+            }
         }
     }
-
-    private func errorBanner(_ message: String) -> some View {
-        Text("Error: \(message)")
-            .foregroundColor(.red)
-            .padding(.horizontal)
-            .padding(.vertical, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.black.opacity(0.6))
+    private var restoredFocus: String {
+        guard let restoreFocus else { return model.screen.rawValue }
+        let isNav = ObservatoryScreen.allCases.contains { $0.rawValue == restoreFocus }
+        let isVisibleBlock = model.screen == .overview && (model.blocks.value?.prefix(3).contains { $0.id == restoreFocus } ?? false)
+        return isNav || isVisibleBlock ? restoreFocus : model.screen.rawValue
+    }
+    private var composition: some View {
+        ZStack {
+            ObservatoryStyle.canvas
+            RadialGradient(colors: [ObservatoryStyle.violet.opacity(0.07), .clear], center: .topTrailing, startRadius: 0, endRadius: 1300)
+            VStack(spacing: 16) {
+                header
+                Group {
+                    switch model.screen {
+                    case .overview: OverviewScreen(model: model, focus: $focused)
+                    case .fees: FeeMarketScreen(model: model)
+                    case .mining: MiningScreen(model: model)
+                    case .lightning: LightningScreen(model: model)
+                    }
+                }
+                .id(model.screen)
+                .transition(.opacity)
+                .frame(maxHeight: .infinity, alignment: .top)
+                footer
+            }
+            .padding(.horizontal, 88).padding(.vertical, 44)
+            .allowsHitTesting(model.celebration == nil)
+            .disabled(model.celebration != nil)
+            .accessibilityHidden(model.celebration != nil)
+            if let block = model.celebration {
+                BlockCelebration(block: block, source: blockFrames[block.id], focus: $focused) {
+                    model.dismissCelebration()
+                } settling: {
+                    model.select(.overview, user: false)
+                }
+                .id(block.id).zIndex(10)
+            }
+        }
+        .coordinateSpace(name: "observatory")
+        .onPreferenceChange(BlockFramePreference.self) { blockFrames = $0 }
+        .foregroundStyle(ObservatoryStyle.text)
+        .animation(reduced ? nil : .easeInOut(duration: 0.28), value: model.screen)
+    }
+    private var header: some View {
+        HStack(spacing: 30) {
+            Text("▥ mempoolTV").font(.system(size: 32, weight: .bold)).foregroundStyle(ObservatoryStyle.orange)
+            Spacer(minLength: 10)
+            ForEach(ObservatoryScreen.allCases) { screen in
+                Button { model.select(screen) } label: {
+                    Text(screen.rawValue).font(.system(size: 26, weight: .medium))
+                        .padding(.vertical, 10)
+                        .overlay(alignment: .bottom) { Capsule().fill(screen == model.screen ? ObservatoryStyle.orange : .clear).frame(height: 3) }
+                }.buttonStyle(ObservatoryButtonStyle()).focused($focused, equals: screen.rawValue)
+            }
+            Spacer(minLength: 10)
+            VStack(alignment: .trailing, spacing: 5) {
+                Text(model.price.value.map { "$" + metric($0.USD, digits: 0) } ?? "USD unavailable").font(.system(size: 28, weight: .semibold)).monospacedDigit()
+                Text(model.price.error != nil ? "QUOTE STALE" : model.healthy ? "● LIVE" : "○ RECONNECTING").font(.system(size: 18)).foregroundStyle(model.healthy ? ObservatoryStyle.teal : ObservatoryStyle.stale)
+            }
+        }.frame(height: 66)
+    }
+    private var footer: some View {
+        HStack {
+            Text(model.connection).lineLimit(1).frame(maxWidth: 860, alignment: .leading)
+            Button("Reconnect") { model.retryLive() }.buttonStyle(ObservatoryButtonStyle())
+            Spacer()
+            Button(model.ambientEnabled ? model.ambientPaused ? "Ambient · resumes after 60s idle" : "Ambient · on" : "Ambient · off") { model.toggleAmbient() }
+                .buttonStyle(ObservatoryButtonStyle())
+            Text("\((ObservatoryScreen.allCases.firstIndex(of: model.screen) ?? 0) + 1) / 4").monospacedDigit()
+            if model.ambientEnabled { ProgressView(value: model.rotationProgress).frame(width: 90).tint(ObservatoryStyle.teal) }
+        }.font(.system(size: 21)).foregroundStyle(ObservatoryStyle.secondary).frame(height: 48)
     }
 }
 
-#Preview {
-    ContentView()
-        .environmentObject(ThemeManager())
+struct BlockFramePreference: PreferenceKey {
+    static var defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) { value.merge(nextValue(), uniquingKeysWith: { _, new in new }) }
 }
