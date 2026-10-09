@@ -45,6 +45,7 @@ struct Retarget: Decodable, Sendable {
     let remainingBlocks: Int
     let nextRetargetHeight: Int
     let timeAvg: Double // milliseconds
+    var estimatedDate: Date { Date(timeIntervalSince1970: estimatedRetargetDate / 1000) }
 }
 struct PoolWindow: Decodable, Sendable {
     let pools: [Entry]
@@ -125,7 +126,8 @@ enum TelemetryMath {
         return result // tenths of a percent; total exactly 100.0%
     }
     static func epoch(height: Int) -> (remaining: Int, progress: Double) {
-        let completed = ((height % 2016) + 2016) % 2016 + 1
+        // The retarget takes effect at the next multiple of 2016.
+        let completed = ((height % 2016) + 2016) % 2016
         return (2016 - completed, Double(completed) / 2016)
     }
     static func priceChange(current: Quote, history: [PriceHistory.Point], now: Date) -> (percent: Double, date: Date)? {
@@ -199,6 +201,7 @@ struct TemplateBook: Sendable {
     }
 }
 struct SeenBlocks: Sendable {
+    static let persistenceKey = "observatory.seenBlockHashes"
     private(set) var hashes: [String]
     let capacity: Int
     init(hashes: [String] = [], capacity: Int = 512) {
@@ -207,6 +210,10 @@ struct SeenBlocks: Sendable {
         for hash in hashes where !unique.contains(hash) { unique.append(hash) }
         self.hashes = Array(unique.suffix(max(1, capacity)))
     }
+    init(defaults: UserDefaults) {
+        self.init(hashes: defaults.stringArray(forKey: Self.persistenceKey) ?? [])
+    }
+    func persist(to defaults: UserDefaults) { defaults.set(hashes, forKey: Self.persistenceKey) }
     @discardableResult mutating func observe(_ hash: String) -> Bool {
         guard !hashes.contains(hash) else { return false }
         hashes.append(hash)
@@ -234,8 +241,9 @@ struct LiveFrame: Decodable, Sendable {
     let da: Retarget?
     let template: TemplateUpdate?
     let backlog: BacklogSample?
+    let loadingIndicators: [String: Double]?
     enum CodingKeys: String, CodingKey {
-        case blocks, block, fees, mempoolInfo, vBytesPerSecond, da
+        case blocks, block, fees, mempoolInfo, vBytesPerSecond, da, loadingIndicators
         case projections = "mempool-blocks"
         case template = "projected-block-transactions"
         case backlog = "live-2h-chart"

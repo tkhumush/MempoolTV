@@ -97,7 +97,7 @@ struct MiningScreen: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("ESTIMATED RETARGET").font(.system(size: 19))
-                    Text(model.difficulty.value.map { Date(timeIntervalSince1970: $0.estimatedRetargetDate / 1000).formatted(date: .abbreviated, time: .shortened) } ?? "Unavailable").font(.system(size: 25, weight: .medium))
+                    Text(model.difficulty.value.map { $0.estimatedDate.formatted(date: .abbreviated, time: .shortened) } ?? "Unavailable").font(.system(size: 25, weight: .medium))
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 12) {

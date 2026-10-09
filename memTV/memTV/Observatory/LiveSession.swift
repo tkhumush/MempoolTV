@@ -28,7 +28,7 @@ actor LiveSession {
     init(api: TelemetryAPI = TelemetryAPI(), defaults: UserDefaults = .standard) {
         self.api = api
         self.defaults = defaults
-        seen = SeenBlocks(hashes: defaults.stringArray(forKey: "observatory.seenBlockHashes") ?? [])
+        seen = SeenBlocks(defaults: defaults)
         let stream = AsyncStream<SessionEvent>.makeStream()
         events = stream.stream
         output = stream.continuation
@@ -63,7 +63,7 @@ actor LiveSession {
         try await send("{\"action\":\"want\",\"data\":[\(topics)]}", to: socket)
         try await send("{\"track-mempool-block\":\(tracking ? 0 : -1)}", to: socket)
     }
-    private func persist() { defaults.set(seen.hashes, forKey: "observatory.seenBlockHashes") }
+    private func persist() { seen.persist(to: defaults) }
     private func snapshot(_ blocks: [ChainBlock]) {
         let ordered = blocks.sorted { $0.height > $1.height }
         tip = ordered.first

@@ -43,6 +43,7 @@ final class ObservatoryModel: ObservableObject {
     @Published var priceHistory = Observation<PriceHistory>()
     @Published var lightning = Observation<LightningSnapshot>()
     @Published var lightningHistory = Observation<[LightningSnapshot]>()
+    @Published var loadingIndicators: [String: Double] = [:]
     @Published var connection = "Connecting"
     @Published var healthy = false
     @Published var celebration: ChainBlock?
@@ -77,7 +78,7 @@ final class ObservatoryModel: ObservableObject {
                 eventsTask = Task { [weak self, session] in
                     for await event in session.events {
                         guard !Task.isCancelled else { return }
-                        self?.consume(event)
+                        if self?.active == true { self?.consume(event) }
                     }
                 }
             }
@@ -125,8 +126,8 @@ final class ObservatoryModel: ObservableObject {
     func retryTemplate() {
         Task { await session.trackTemplate(false); await session.trackTemplate(screen == .fees) }
     }
-    private func consume(_ event: SessionEvent) {
-        guard active else { return }
+    // Event reduction is synchronous; the stream owner gates inactive sessions.
+    func consume(_ event: SessionEvent) {
         switch event {
         case .status(let message, let live):
             connection = message; healthy = live
@@ -146,6 +147,7 @@ final class ObservatoryModel: ObservableObject {
                 celebration = block
             }
         case .frame(let frame):
+            if let value = frame.loadingIndicators { loadingIndicators = value }
             if let value = frame.projections { projections.accept(value, origin: "Live projection") }
             if let value = frame.fees { fees.accept(value, origin: "Live recommendations") }
             if let value = frame.mempoolInfo { queue.accept(value, origin: "Live queue") }
