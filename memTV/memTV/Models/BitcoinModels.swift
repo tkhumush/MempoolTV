@@ -7,19 +7,6 @@
 
 import Foundation
 
-// MARK: - Selection Types
-
-enum SelectedBlockType: Equatable {
-    case confirmed(Block)
-    case mempool(MempoolTransaction)
-}
-
-enum PersistentSelection: Equatable {
-    case confirmedBlock(hash: String)
-    case mempoolBlock(position: Int)
-    case none
-}
-
 // MARK: - Block
 
 struct Block: Identifiable, Equatable, Codable {
@@ -32,6 +19,7 @@ struct Block: Identifiable, Equatable, Codable {
     let weight: Int?
     let totalFees: Double?
     let medianFee: Double?
+    let reward: Double?
     let subsidy: Double?
     let miner: String?
 
@@ -39,7 +27,7 @@ struct Block: Identifiable, Equatable, Codable {
         !hash.isEmpty && height > 0
     }
 
-    init(hash: String, height: Int, time: Int, txCount: Int, size: Int? = nil, weight: Int? = nil, totalFees: Double? = nil, medianFee: Double? = nil, subsidy: Double? = nil, miner: String? = nil) {
+    init(hash: String, height: Int, time: Int, txCount: Int, size: Int? = nil, weight: Int? = nil, totalFees: Double? = nil, medianFee: Double? = nil, subsidy: Double? = nil, miner: String? = nil, reward: Double? = nil) {
         self.id = hash
         self.hash = hash
         self.height = height
@@ -49,6 +37,7 @@ struct Block: Identifiable, Equatable, Codable {
         self.weight = weight
         self.totalFees = totalFees
         self.medianFee = medianFee
+        self.reward = reward
         self.subsidy = subsidy
         self.miner = miner
     }
@@ -81,10 +70,11 @@ struct MempoolSpaceBlockExtras: Codable {
     let reward: Int?
     let medianFee: Double?
     let medianFeeRate: Double?
+    let pool: MempoolSpacePool?
 
     enum CodingKeys: String, CodingKey {
         case totalFees = "totalFees"
-        case reward
+        case reward, pool
         case medianFee = "medianFee"
         case medianFeeRate = "medianFeeRate"
     }
@@ -92,9 +82,9 @@ struct MempoolSpaceBlockExtras: Codable {
 
 extension Block {
     init(from response: MempoolSpaceBlockResponse) {
-        let minerName: String? = response.pool?.name
+        let minerName: String? = response.extras?.pool?.name
         let totalFeesBTC: Double? = response.extras?.totalFees.map { Double($0) / 100_000_000.0 }
-        let subsidyBTC: Double? = response.extras?.reward.map { Double($0) / 100_000_000.0 }
+        let rewardBTC = response.extras?.reward.map { Double($0) / 100_000_000.0 }
 
         self.init(
             hash: response.id,
@@ -104,9 +94,9 @@ extension Block {
             size: response.size,
             weight: response.weight,
             totalFees: totalFeesBTC,
-            medianFee: response.extras?.medianFee,
-            subsidy: subsidyBTC,
-            miner: minerName
+            medianFee: response.extras?.medianFeeRate ?? response.extras?.medianFee,
+            subsidy: Constants.subsidy(atHeight: response.height),
+            miner: minerName, reward: rewardBTC
         )
     }
 }
@@ -156,63 +146,6 @@ extension Block {
     }
 }
 
-// MARK: - Mempool Transaction
-
-struct MempoolTransaction: Identifiable, Equatable, Codable {
-    let id: Int
-    let txid: String
-    let fee: Int
-    let vsize: Int
-    let position: Int
-    let estimatedConfirmationTime: Int
-    let medianFee: Int
-    let blockSize: Int
-    let blockVSize: Int
-    let nTx: Int
-    let totalFees: Int
-    let feeRange: [Double]
-
-    var displayLabel: String {
-        switch position {
-        case 0: return "Next"
-        default: return "+\(position)"
-        }
-    }
-
-    init(txid: String, fee: Int, vsize: Int, position: Int = 0,
-         estimatedConfirmationTime: Int = 30, medianFee: Int = 25,
-         blockSize: Int = 0, blockVSize: Int = 0, nTx: Int = 0,
-         totalFees: Int = 0, feeRange: [Double] = []) {
-        self.id = position
-        self.txid = txid
-        self.fee = fee
-        self.vsize = vsize
-        self.position = position
-        self.estimatedConfirmationTime = estimatedConfirmationTime
-        self.medianFee = medianFee
-        self.blockSize = blockSize
-        self.blockVSize = blockVSize
-        self.nTx = nTx
-        self.totalFees = totalFees
-        self.feeRange = feeRange
-    }
-}
-
-// MARK: - Mempool Space Mempool Block Response
-
-struct MempoolSpaceMempoolBlockResponse: Codable {
-    let blockSize: Int
-    let blockVSize: Int
-    let nTx: Int
-    let totalFees: Int
-    let medianFee: Double
-    let feeRange: [Double]
-
-    enum CodingKeys: String, CodingKey {
-        case blockSize, blockVSize, nTx, totalFees, medianFee, feeRange
-    }
-}
-
 // MARK: - Mempool Info
 
 struct MempoolInfo: Codable {
@@ -221,22 +154,10 @@ struct MempoolInfo: Codable {
     let mempoolminfee: Double
 }
 
-// MARK: - Fee Range
-
-struct FeeRange: Codable {
-    let minFee: Int
-    let maxFee: Int
-    let txCount: Int
-
-    var feeRate: Double {
-        Double(minFee) / 1000.0
-    }
-}
-
 // MARK: - Transaction
 
 struct Transaction: Identifiable, Equatable, Codable {
-    let id: String
+    var id: String { txid }
     let txid: String
     let version: Int
     let locktime: Int
@@ -260,7 +181,7 @@ struct Transaction: Identifiable, Equatable, Codable {
     }
 }
 
-struct TxInput: Codable {
+struct TxInput: Equatable, Codable {
     let txid: String?
     let vout: Int?
     let isCoinbase: Bool
@@ -282,7 +203,7 @@ struct TxInput: Codable {
     }
 }
 
-struct TxOutput: Codable {
+struct TxOutput: Equatable, Codable {
     let scriptpubkey: String
     let scriptpubkeyAsm: String?
     let scriptpubkeyType: String
@@ -298,7 +219,7 @@ struct TxOutput: Codable {
     }
 }
 
-struct TransactionStatus: Codable {
+struct TransactionStatus: Equatable, Codable {
     let confirmed: Bool
     let blockHeight: Int?
     let blockHash: String?
@@ -314,7 +235,7 @@ struct TransactionStatus: Codable {
 
 // MARK: - MiningPool
 
-struct MiningPool: Codable, Identifiable {
+struct MiningPool: Equatable, Codable, Identifiable {
     let poolId: Int
     let name: String
     let link: String
@@ -323,7 +244,7 @@ struct MiningPool: Codable, Identifiable {
     let emptyBlocks: Int
     let slug: String
     let avgMatchRate: Double?
-    let avgFeeDelta: String?
+    let avgFeeDelta: Double?
     let poolUniqueId: Int
 
     var id: Int { poolId }
@@ -341,7 +262,7 @@ struct MiningPool: Codable, Identifiable {
     }
 }
 
-struct MiningPoolsResponse: Codable {
+struct MiningPoolsResponse: Equatable, Codable {
     let pools: [MiningPool]
     let blockCount: Int
     let lastEstimatedHashrate: Double
@@ -358,14 +279,14 @@ struct MiningPoolsResponse: Codable {
 
 // MARK: - Hashrate
 
-struct HashrateDataPoint: Codable, Identifiable {
+struct HashrateDataPoint: Equatable, Codable, Identifiable {
     let timestamp: Int
     let avgHashrate: Double
 
     var id: Int { timestamp }
 }
 
-struct HashrateResponse: Codable {
+struct HashrateResponse: Equatable, Codable {
     let hashrates: [HashrateDataPoint]
     let currentHashrate: Double
     let currentDifficulty: Double
@@ -373,7 +294,7 @@ struct HashrateResponse: Codable {
 
 // MARK: - Price
 
-struct PriceResponse: Codable {
+struct PriceResponse: Equatable, Codable {
     let time: Int
     let USD: Int
     let EUR: Int?
@@ -386,7 +307,7 @@ struct PriceResponse: Codable {
 
 // MARK: - Fees
 
-struct FeeEstimate: Codable {
+struct FeeEstimate: Equatable, Codable {
     let fastestFee: Double
     let halfHourFee: Double
     let hourFee: Double
@@ -396,7 +317,7 @@ struct FeeEstimate: Codable {
 
 // MARK: - Difficulty
 
-struct DifficultyAdjustment: Codable {
+struct DifficultyAdjustment: Equatable, Codable {
     let progressPercent: Double
     let difficultyChange: Double
     let estimatedRetargetDate: Int

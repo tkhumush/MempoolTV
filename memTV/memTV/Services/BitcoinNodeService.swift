@@ -59,12 +59,12 @@ final class BitcoinNodeService: @unchecked Sendable {
     }
 
     func getBlock(hash: String) async throws -> Block {
-        let response: BitcoinRPCBlockResponse = try await performRPC(method: "getblock", params: [hash, 2])
+        let response: BitcoinRPCBlockResponse = try await performRPC(method: "getblock", params: [RPCParameter.string(hash), RPCParameter.integer(2)])
         return Block(from: response)
     }
 
     func getDetailedBlock(hash: String) async throws -> Block {
-        let response: BitcoinRPCBlockResponse = try await performRPC(method: "getblock", params: [hash, 2])
+        let response: BitcoinRPCBlockResponse = try await performRPC(method: "getblock", params: [RPCParameter.string(hash), RPCParameter.integer(2)])
         var block = Block(from: response)
 
         if let miner = MinerDetector.minerName(from: response.tx) {
@@ -171,5 +171,16 @@ final class BitcoinNodeService: @unchecked Sendable {
         }
 
         return result
+    }
+}
+
+private enum RPCParameter: Encodable {
+    case string(String), integer(Int)
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .string(let value): try container.encode(value)
+        case .integer(let value): try container.encode(value)
+        }
     }
 }
