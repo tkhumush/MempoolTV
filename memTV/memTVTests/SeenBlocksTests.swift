@@ -5,9 +5,12 @@ import Testing
 struct SeenBlocksTests {
     @Test func firstSightAndReplay() {
         var seen = SeenBlocks()
-        #expect(seen.observe("a"))
-        #expect(!seen.observe("a"))
-        #expect(seen.observe("b"))
+        let observed1 = seen.observe("a")
+        #expect(observed1)
+        let observed2 = seen.observe("a")
+        #expect(!observed2)
+        let observed3 = seen.observe("b")
+        #expect(observed3)
         #expect(seen.hashes == ["a", "b"])
     }
 
@@ -16,22 +19,29 @@ struct SeenBlocksTests {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         var seen = SeenBlocks(defaults: defaults)
-        #expect(seen.observe("a"))
-        #expect(seen.observe("b"))
+        let observed4 = seen.observe("a")
+        #expect(observed4)
+        let observed5 = seen.observe("b")
+        #expect(observed5)
         seen.persist(to: defaults)
         let restartedDefaults = try #require(UserDefaults(suiteName: suite))
         var restarted = SeenBlocks(defaults: restartedDefaults)
         #expect(restarted.hashes == ["a", "b"])
-        #expect(!restarted.observe("a"))
-        #expect(!restarted.observe("b"))
-        #expect(restarted.observe("c"))
+        let observed6 = restarted.observe("a")
+        #expect(!observed6)
+        let observed7 = restarted.observe("b")
+        #expect(!observed7)
+        let observed8 = restarted.observe("c")
+        #expect(observed8)
     }
 
     @Test func boundedHistoryDeduplicatesWithoutRefreshingReplays() {
         var seen = SeenBlocks(hashes: ["a", "a", "b", "c"], capacity: 2)
         #expect(seen.hashes == ["b", "c"])
-        #expect(!seen.observe("b"))
-        #expect(seen.observe("d"))
+        let observed9 = seen.observe("b")
+        #expect(!observed9)
+        let observed10 = seen.observe("d")
+        #expect(observed10)
         #expect(seen.hashes == ["c", "d"])
         var minimum = SeenBlocks(capacity: 0)
         minimum.observe("a"); minimum.observe("b")
