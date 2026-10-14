@@ -43,17 +43,17 @@ struct OverviewScreen: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HeroMetric(title: "NEXT-BLOCK FEE", value: metric(model.fees.value?.fastestFee, digits: 2), unit: "sat/vB", caption: "Recommendation · confirmation is not guaranteed")
                     ObservationStatus(observation: model.fees) { Task { await model.refresh(slow: false) } }
-                }.observatoryCard()
+                }.frame(maxHeight: .infinity, alignment: .top).observatoryCard()
                 VStack(alignment: .leading, spacing: 12) {
                     HeroMetric(title: "BITCOIN / USD", value: model.price.value.map { "$" + metric($0.USD, digits: 0) } ?? "Unavailable", caption: priceChange)
                     ObservationStatus(observation: model.price, maxAge: 3600) { Task { await model.refreshPrice() } }
                     if model.priceHistory.error != nil { Text("24h comparison unavailable").font(.system(size: 19)).foregroundStyle(ObservatoryStyle.stale) }
-                }.observatoryCard()
+                }.frame(maxHeight: .infinity, alignment: .top).observatoryCard()
                 VStack(alignment: .leading, spacing: 12) {
                     HeroMetric(title: "BLOCK PACE · MODEL ESTIMATE", value: model.difficulty.value.map { "~" + metric($0.timeAvg / 60000, digits: 1) } ?? "Unavailable", unit: "min", caption: "Observed epoch pace · probabilistic, not a countdown")
                     ObservationStatus(observation: model.difficulty, maxAge: 600) { Task { await model.refreshSlow() } }
-                }.observatoryCard()
-            }
+                }.frame(maxHeight: .infinity, alignment: .top).observatoryCard()
+            }.fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 36) {
                 Text("PENDING  \(model.queue.value.map { $0.size.formatted() } ?? "Unavailable") tx")
                 Text("QUEUED  \(metric(model.queue.value.map { $0.bytes / 1e6 })) vMB")

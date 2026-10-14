@@ -4,11 +4,11 @@ struct FeeMarketScreen: View {
     @ObservedObject var model: ObservatoryModel
     @Environment(\.accessibilityReduceMotion) private var reduced
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 14) {
             ScreenHeading(eyebrow: "THE FEE MARKET", title: "A place in the next block.", note: "\(metric(model.incoming.value, digits: 0)) vB/s incoming", tint: ObservatoryStyle.violet)
             ObservationStatus(observation: model.incoming) { model.retryLive() }
             HStack(alignment: .top, spacing: 40) {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 14) {
                     HStack {
                         Text("NEXT BLOCK  ·  PROJECTED ESTIMATE")
                         Spacer()
@@ -51,7 +51,10 @@ struct FeeMarketScreen: View {
                 Text("THE WAITING ROOM").font(.system(size: 25, weight: .semibold)).tracking(2)
                 Text("Queued vsize · current snapshot").font(.system(size: 22)).foregroundStyle(ObservatoryStyle.secondary)
                 Spacer()
+                ObservationStatus(observation: model.backlog, maxAge: 300) { Task { await model.refreshBacklog() } }
+                    .frame(width: 620)
                 Text(metric(model.backlog.value?.bands.map { $0.reduce(0, +) / 1e6 }, digits: 2, suffix: " vMB"))
+                    .padding(.leading, 24)
             }
             if let bands = model.backlog.value?.bands {
                 BacklogStrip(bands: bands).frame(height: 46)
@@ -62,7 +65,6 @@ struct FeeMarketScreen: View {
                     }
                 }.font(.system(size: 20))
             } else { Text("Fee-band backlog unavailable").font(.system(size: 26)).foregroundStyle(ObservatoryStyle.secondary) }
-            ObservationStatus(observation: model.backlog, maxAge: 300) { Task { await model.refreshBacklog() } }
         }
     }
     private func feeRow(_ label: String, _ value: Double?) -> some View {

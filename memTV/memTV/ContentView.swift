@@ -57,17 +57,19 @@ struct ContentView: View {
             RadialGradient(colors: [ObservatoryStyle.violet.opacity(0.07), .clear], center: .topTrailing, startRadius: 0, endRadius: 1300)
             VStack(spacing: 16) {
                 header
-                Group {
-                    switch model.screen {
-                    case .overview: OverviewScreen(model: model, focus: $focused)
-                    case .fees: FeeMarketScreen(model: model)
-                    case .mining: MiningScreen(model: model)
-                    case .lightning: LightningScreen(model: model)
+                GeometryReader { viewport in
+                    Group {
+                        switch model.screen {
+                        case .overview: OverviewScreen(model: model, focus: $focused)
+                        case .fees: FeeMarketScreen(model: model)
+                        case .mining: MiningScreen(model: model)
+                        case .lightning: LightningScreen(model: model)
+                        }
                     }
+                    .id(model.screen)
+                    .transition(.opacity)
+                    .frame(width: viewport.size.width, height: viewport.size.height, alignment: .top)
                 }
-                .id(model.screen)
-                .transition(.opacity)
-                .frame(maxHeight: .infinity, alignment: .top)
                 footer
             }
             .padding(.horizontal, 88).padding(.vertical, 44)

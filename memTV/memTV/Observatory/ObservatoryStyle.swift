@@ -54,7 +54,9 @@ struct ScreenHeading: View {
             }
             Spacer()
             Text(note).font(.system(size: 24)).foregroundStyle(ObservatoryStyle.secondary).multilineTextAlignment(.trailing)
-        }.padding(.vertical, 12)
+        }.fixedSize(horizontal: false, vertical: true)
+            .frame(height: 108, alignment: .top)
+            .padding(.top, 12)
     }
 }
 struct ObservationStatus<Value>: View {
